@@ -1,0 +1,616 @@
+grammar Java;
+
+/*********************************************************************************
+                              RULES
+**********************************************************************************/
+
+CompilationUnit : Spacing? PackageDeclaration? (ImportDeclaration)* (TypeDeclaration)* EOI;
+
+PackageDeclaration : Annotations 'package' QualifiedIdentifier Semicolon;
+
+ImportDeclaration : 'import' 'static'? QualifiedIdentifier DotStar? Semicolon;
+
+@SkipNode
+TypeDeclaration : ClassDeclaration 
+                | EnumDeclaration 
+                | InterfaceDeclaration 
+                | AnnotationDeclaration 
+                | Semicolon;
+
+Annotations : Annotation*;
+
+@CatchMismatch
+@Memoize
+Annotation : '@' 'interface'! QualifiedIdentifier AnnotationParameters?;
+
+QualifiedIdentifier : Identifier ('.' Identifier)*;
+
+DotStar : '.' '*';
+
+@Memoize
+Modifiers : Modifier*;
+
+@SkipNode
+Modifier : Annotation 
+         | 'public' 
+         | 'protected' 
+         | 'private' 
+         | 'static' 
+         | 'abstract' 
+         | 'final' 
+         | 'native' 
+         | 'synchronized' 
+         | 'transient' 
+         | 'volatile' 
+         | 'strictfp';
+
+ClassDeclaration : Modifiers 'class' Identifier TypeParameters? Extends? Implements? ClassBody;
+
+EnumDeclaration : Modifiers 'enum' Identifier Implements? EnumBody;
+
+InterfaceDeclaration : Modifiers 'interface' Identifier TypeParameters? ExtendsInterfaces? InterfaceBody;
+
+AnnotationDeclaration : Modifiers '@' 'interface' Identifier AnnotationTypeBody;
+
+Extends : 'extends' QualifiedClassName;
+
+@Memoize
+QualifiedClassName : ClassName ('.' ClassName)*;
+
+Implements : 'implements' ClassTypeList;
+
+@SkipNode
+ClassTypeList : QualifiedClassName (',' QualifiedClassName)*;
+
+@SkipNode
+@Memoize
+Identifier : Keyword! IdentifierPattern OptionalSpacing;
+
+@Rule(Identifier)
+@Atomic
+IdentifierPattern : ([a-z] | [A-Z] | '_' | '$') ([a-z] | [A-Z] | [0-9] | '_' | '$')*;
+
+@Memoize
+TypeParameters : '<' TypeParameter (',' TypeParameter)* '>';
+
+ClassBody : '{' ClassBodyDeclaration* '}';
+
+@SkipNode
+ClassBodyDeclaration : Semicolon 
+                     | StaticBlock 
+                     | MethodDeclaration 
+                     | ConstructorDeclaration 
+                     | FieldsDeclarations 
+                     | InterfaceDeclaration 
+                     | ClassDeclaration 
+                     | EnumDeclaration 
+                     | AnnotationDeclaration;
+
+StaticBlock : 'static'? Block;
+
+Block : '{' BlockStatements '}';
+
+MethodDeclaration : Modifiers MethodSignature (Block | EmptyBody);
+
+ConstructorDeclaration : Modifiers TypeParameters? Identifier ParametersDeclarations Throws? Block;
+
+FieldsDeclarations : Modifiers Type VariableDeclarations Semicolon;
+
+@CatchMismatch
+@Memoize
+Type : Array | BasicType | QualifiedClassName;
+
+VariableDeclarations : VariableDeclaration (',' VariableDeclaration)*;
+
+Throws : 'throws' ClassTypeList;
+
+EmptyBody : Semicolon;
+
+ReturnType : Type | 'void';
+
+MethodSignature : TypeParameters? ReturnType Identifier ParametersDeclarations Dimensions Throws?;
+
+ParametersDeclarations : '(' ParametersDeclarationList? ')';
+
+@Memoize
+Dimensions : Dim*;
+
+@Rule(Implements)
+ExtendsInterfaces : 'extends' ClassTypeList;
+
+InterfaceBody : '{' InterfaceBodyDeclaration* '}';
+
+@SkipNode
+InterfaceBodyDeclaration : InterfaceMethod 
+                         | ConstantsDeclarations 
+                         | InterfaceDeclaration 
+                         | AnnotationDeclaration 
+                         | ClassDeclaration 
+                         | EnumDeclaration 
+                         | Semicolon;
+
+InterfaceMethod : Modifiers MethodSignature Semicolon;
+
+ConstantsDeclarations : Modifiers Type ConstantsDeclarationsList Semicolon;
+
+ConstantsDeclarationsList : ConstantDeclaration (',' ConstantDeclaration)*;
+
+ConstantDeclaration : Identifier Dimensions '=' VariableInitializer;
+
+VariableInitializer : ArrayInitializer | Expression;
+
+EnumBody : '{' EnumConstants? ','? EnumBodyDeclarations? '}';
+
+EnumConstants : EnumConstant (',' EnumConstant)*;
+
+EnumBodyDeclarations : Semicolon ClassBodyDeclaration*;
+
+EnumConstant : Annotations Identifier Arguments? ClassBody?;
+
+Arguments : '(' (Expression (',' Expression)*)? ')';
+
+Final : 'final';
+
+VariableModifiers : (Final | Annotation)*;
+
+LocalVariableDeclarationStatement : VariableModifiers Type VariableDeclarations Semicolon;
+
+VariableDeclaration : Identifier Dimensions VariableInitialization?;
+
+@SkipNode
+VariableInitialization : '=' VariableInitializer;
+
+@SkipNode
+ParametersDeclarationList : (ParameterDeclaration ',' ParametersDeclarationList) | ParameterDeclaration | ParameterVariableDeclaration;
+
+@CatchMismatch
+@Memoize
+ParameterDeclaration : VariableModifiers Type Identifier Dimensions;
+
+ParameterVariableDeclaration : VariableModifiers Type '...' Identifier Dimensions;
+
+@SkipNode
+BlockStatements : BlockStatement*;
+
+@SkipNode
+BlockStatement : LocalVariableDeclarationStatement 
+               | ClassDeclaration 
+               | EnumDeclaration 
+               | Statement;
+
+@SkipNode
+Statement : Block | 
+            AssertStatement | 
+            IfStatement | 
+            ForStatement | 
+            ForIterableStatement | 
+            WhileStatement | 
+            DoWhileStatement | 
+            TryCatchStatement | 
+            SwitchStatement | 
+            SynchronizedStatement | 
+            ReturnStatement | 
+            ThrowStatement | 
+            BreakStatement | 
+            ContinueStatement | 
+            IdentifiedStatement | 
+            StatementExpression | 
+            Semicolon;
+
+AssertStatement : 'assert' Expression (':' Expression)? Semicolon;
+
+IfStatement : 'if' ParExpression Statement ElseStatement?;
+
+ForStatement : 'for' '(' ForInit? Semicolon Expression? Semicolon ForUpdate? ')' Statement;
+
+ForIterableStatement : 'for' '(' ParameterDeclaration ':' Expression ')' Statement;
+
+WhileStatement : 'while' ParExpression Statement;
+
+DoWhileStatement : 'do' Statement 'while' ParExpression Semicolon;
+
+TryCatchStatement : 'try' ResourceSpecification? Block Catch* Finally?;
+
+@SkipNode
+ResourceSpecification : '(' Resources ';'? ')';
+
+Resources : Resource (';' Resource)*;
+
+Resource : VariableModifiers QualifiedClassName Identifier Dimensions '=' Expression;
+
+SwitchStatement : 'switch' ParExpression '{' SwitchBlockStatementGroups '}';
+
+SynchronizedStatement : 'synchronized' ParExpression Block;
+
+ReturnStatement : 'return' Expression? Semicolon;
+
+ThrowStatement : 'throw' Expression Semicolon;
+
+BreakStatement : 'break' Identifier? Semicolon;
+
+ContinueStatement : 'continue' Identifier? Semicolon;
+
+IdentifiedStatement : Identifier ':' Statement;
+
+@SkipNode
+StatementExpression : Expression Semicolon;
+
+ElseStatement : 'else' Statement;
+
+@SkipNode
+ParExpression : '(' Expression ')';
+
+Expression : AssignmentExpression | ConditionalExpression;
+
+ForInit : ForInitVariables | ForInitExpressions;
+
+ForUpdate : Expression (',' Expression)*;
+
+CatchType : QualifiedIdentifier ('|' QualifiedIdentifier)*;
+
+CatchParameter : VariableModifiers CatchType Identifier;
+
+Catch : 'catch' '(' CatchParameter ')' Block;
+
+Finally : 'finally' Block;
+
+SwitchBlockStatementGroups : SwitchBlockStatementGroup*;
+
+SwitchBlockStatementGroup : SwitchLabel BlockStatements;
+
+SwitchLabel : ('case' Expression ':') | ('case' EnumConstantName ':') | ('default' ':');
+
+EnumConstantName : Identifier;
+
+ForInitVariables : VariableModifiers Type VariableDeclarations;
+
+ForInitExpressions : Expression (',' Expression)*;
+
+AssignmentExpression : ConditionalExpression AssignmentOperator Expression;
+
+@Memoize
+@SkipNode
+ConditionalExpression : TernaryExpression | ConditionalOrExpression;
+
+@SkipNode
+@Memoize
+AssignmentOperator : '=' | '+=' | '-=' | '*=' | '/=' | '&=' | '|=' | '^=' | '%=' | '<<=' | '>>=' | '>>>=';
+
+TernaryExpression : ConditionalOrExpression '?' Expression ':' ConditionalExpression;
+
+@Memoize
+@SkipNode
+ConditionalOrExpression : OrExpression | ConditionalAndExpression;
+
+OrExpression : ConditionalAndExpression '||' ConditionalOrExpression;
+
+@Memoize
+@SkipNode
+ConditionalAndExpression : AndExpression | OptionalBitOrExpression;
+
+AndExpression : OptionalBitOrExpression '&&' ConditionalAndExpression;
+
+@Memoize
+@SkipNode
+OptionalBitOrExpression : BitOrExpression | OptionalBitXOrExpression;
+
+BitOrExpression : OptionalBitXOrExpression '|' OptionalBitOrExpression;
+
+@Memoize
+@SkipNode
+OptionalBitXOrExpression : BitXOrExpression | OptionalBitAndExpression;
+
+BitXOrExpression : OptionalBitAndExpression '^' OptionalBitXOrExpression;
+
+@Memoize
+@SkipNode
+OptionalBitAndExpression : BitAndExpression | OptionalRelationalExpression;
+
+BitAndExpression : OptionalRelationalExpression '&' OptionalBitAndExpression;
+
+@Memoize
+@SkipNode
+OptionalRelationalExpression : RelationalExpression | OptionalInstanceOfExpression;
+
+RelationalExpression : OptionalInstanceOfExpression ('==' | '!=' | '<=' | '>=' | '<' | '>') OptionalRelationalExpression;
+
+@Memoize
+@SkipNode
+OptionalInstanceOfExpression : InstanceOfExpression | OptionalAdditiveExpression;
+
+InstanceOfExpression : OptionalAdditiveExpression 'instanceof' ReferenceType;
+
+@Memoize
+@SkipNode
+OptionalAdditiveExpression : AdditiveExpression | OptionalMultiplicativeExpression;
+
+@SkipNode
+@Memoize
+ReferenceType : BasicTypeArray | QualifiedClassNameArray | QualifiedClassName;
+
+AdditiveExpression : OptionalMultiplicativeExpression ('+' | '-') OptionalAdditiveExpression;
+
+@Memoize
+@SkipNode
+OptionalMultiplicativeExpression : MultiplicativeExpression | OptionalShiftExpression;
+
+MultiplicativeExpression : OptionalShiftExpression ('*' | '/' | '%') OptionalMultiplicativeExpression;
+
+@Memoize
+@SkipNode
+OptionalShiftExpression : ShiftExpression | UnaryExpression;
+
+ShiftExpression : UnaryExpression ('<<' | '>>>' | '>>') OptionalShiftExpression;
+
+@Memoize
+@SkipNode
+UnaryExpression : PrefixedExpression | CastExpression | PostfixedExpression | Primary;
+
+PrefixedExpression : PrefixOp OptionalSpacing Expression;
+
+CastExpression : '(' Type ')' Expression;
+
+PostfixedExpression : Primary PostFixOp+;
+
+@Atomic
+PrefixOp : '++' | '--' | '!' | '~' | '+' | '-';
+
+PostFixOp : '++' | '--';
+
+@Memoize
+@SkipNode
+Primary : QualifiedExpression | ArrayAccess | Atomic;
+
+QualifiedExpression : (ArrayAccess | Atomic) ('.' NonWildcardTypeArguments? (ArrayAccess | Atomic))+;
+
+ArrayAccess : Atomic ArrayIndex;
+
+@Memoize
+@SkipNode
+Atomic : ParExpression | 
+         ClassTypeReference | 
+         Literal | 
+         BasicTypeClassReference | 
+         VoidClassReference | 
+         ThisMethodCall | 
+         This | 
+         SuperMethodCall | 
+         SuperConstructorCall | 
+         SuperFieldAccess | 
+         ClassCreator | 
+         ArrayCreator | 
+         MethodCall | 
+         Identifier;
+
+ClassTypeReference : QualifiedIdentifier Dimensions '.' 'class';
+
+@SkipNode
+Literal : (FloatLiteral | LongLiteral | IntegerLiteral | CharLiteral | StringLiteral | True | False | Null) OptionalSpacing;
+
+BasicTypeClassReference : BasicType Dimensions '.' 'class';
+
+VoidClassReference : 'void' '.' 'class';
+
+ThisMethodCall : This Arguments;
+
+@Memoize
+This : 'this';
+
+@Memoize
+Super : 'super';
+
+SuperMethodCall : Super '.' Identifier Arguments;
+
+SuperConstructorCall : Super Arguments;
+
+SuperFieldAccess : Super '.' Identifier;
+
+@Memoize
+New : 'new';
+
+ClassCreator : New CreatedName Arguments ClassBody?;
+
+@SkipNode
+ArrayCreator : InitializedArrayCreator | EmptyArrayCreator;
+
+@Memoize
+MethodCall : Identifier Arguments;
+
+@Memoize
+ArrayIndex : DimExpr+;
+
+DimExpr : '[' Expression ']';
+
+@SkipNode
+@Memoize
+BasicType : BasicTypeName TestNoAlpha OptionalSpacing;
+
+@Atomic
+@Rule(BasicType)
+BasicTypeName : 'byte' | 'short' | 'char' | 'int' | 'long' | 'float' | 'double' | 'boolean';
+
+NonWildcardTypeArguments : '<' (ReferenceType (',' ReferenceType)*)? '>';
+
+CreatedName : TypeName ('.' TypeName)*;
+
+InitializedArrayCreator : New ArrayType Dim+ ArrayInitializer;
+
+EmptyArrayCreator : New ArrayType DimExpr+ Dimensions;
+
+@SkipNode
+ArrayType : QualifiedClassName | BasicType;
+
+Dim : '[' ']';
+
+ArrayInitializer : '{' (VariableInitializer (',' VariableInitializer)*)? ','? '}';
+
+TypedName : Identifier NonWildcardTypeArguments;
+
+@SkipNode
+TypeName : TypedName | Identifier;
+
+Array : (BasicType | QualifiedClassName) Dim+;
+
+BasicTypeArray : BasicType Dim+;
+
+QualifiedClassNameArray : QualifiedClassName Dim+;
+
+@SkipNode
+ClassName : TypedClassName | Identifier;
+
+TypedClassName : Identifier TypeArguments;
+
+TypeArguments : '<' TypeArgument (',' TypeArgument)* '>';
+
+TypeArgument : ReferenceType | QueryType;
+
+QueryType : '?' (('extends' | 'super') ReferenceType)?;
+
+TypeParameter : Identifier Bound?;
+
+Bound : 'extends' QualifiedClassName ('&' QualifiedClassName)*;
+
+AnnotationTypeBody : '{' AnnotationTypeElementDeclaration* '}';
+
+@SkipNode
+AnnotationTypeElementDeclaration : AnnotationMethod 
+                                 | AnnotationsConstants 
+                                 | ClassDeclaration 
+                                 | EnumDeclaration 
+                                 | InterfaceDeclaration 
+                                 | AnnotationDeclaration 
+                                 | Semicolon;
+
+AnnotationMethod : Modifiers Type Identifier '(' ')' DefaultValue? Semicolon;
+
+AnnotationsConstants : Modifiers Type VariableDeclarations Semicolon;
+
+DefaultValue : 'default' ElementValue;
+
+ElementValue : ConditionalExpression 
+             | Annotation 
+             | ElementValueArrayInitializer;
+
+AnnotationParameters : NormalAnnotationRest | SingleElementAnnotationRest;
+
+@SkipNode
+NormalAnnotationRest : '(' ElementValuePairs? ')';
+
+@SkipNode
+SingleElementAnnotationRest : '(' ElementValue ')';
+
+@SkipNode
+ElementValuePairs : ElementValuePair (',' ElementValuePair)*;
+
+ElementValuePair : Identifier '=' ElementValue;
+
+ElementValueArrayInitializer : '{' ElementValues? ','? '}';
+
+@SkipNode
+ElementValues : ElementValue (',' ElementValue)*;
+
+@FollowLiterals([A-Za-z_$][A-Za-z0-9_$]*)
+TestNoAlpha : ([a-z] | [A-Z] | [0-9] | '_' | '$')!;
+
+@SyntaxOnly
+@Memoize
+Spacing : (BlockComment | LineComment | NewLine | Spaces)+;
+
+@FollowLiterals
+@SyntaxOnly
+@Memoize
+@Rule(Spacing)
+OptionalSpacing : (BlockComment | LineComment | NewLine | Spaces)*;
+
+@Atomic
+Spaces : (' ' | '\r' | '\t' | '\f')+;
+
+@Atomic
+BlockComment : '/*' ('*/'! .)* '*/';
+
+@Atomic
+NewLine : '\n' | '\r\n';
+
+@Atomic
+LineComment : '//' ('\n'! .)* (NewLine | EOI);
+
+/*UnicodeEscape : 'u'+ HexDigit HexDigit HexDigit HexDigit;*/
+@Fragment
+UnicodeEscape : ('u'+ "005C" ('b' | 't' | 'n' | 'f' | 'r' | '\"' | '\'' | '\\' | ('u'+ HexDigit HexDigit HexDigit HexDigit))) |
+                ('u'+ HexDigit HexDigit HexDigit HexDigit);
+
+FloatLiteral : HexFloat | DecimalFloat;
+
+@Atomic
+LongLiteral : IntegerLiteral ('l' | 'L');
+
+@Memoize
+@Atomic
+IntegerLiteral : HexNumeral | OctalNumeral | DecimalNumeral;
+
+@Atomic
+CharLiteral : '\'' (Escape | (('\'' | '\\')! .)) '\'';
+
+@Atomic
+StringLiteral : '"' (Escape | (('\r' | '\n' | '\"' | '\\')! .))* '"';
+
+True : 'true';
+
+False : 'false';
+
+Null : 'null';
+
+@Fragment
+@Atomic
+HexNumeral : '0' ('x'|'X') HexDigit+;
+
+@Fragment
+@Atomic
+OctalNumeral : '0' [0-7]+;
+
+@Fragment
+@Atomic
+DecimalNumeral : '0' | ([1-9] Digit*);
+
+@Fragment
+Digit : [0-9];
+
+@Fragment
+HexDigit : [a-f] | [A-F] | [0-9];
+
+@Atomic
+HexFloat : HexSignificant BinaryExponent ('f' | 'F' | 'd' | 'D')?;
+
+@Atomic
+DecimalFloat : (Digit+ '.' Digit* Exponent? ('f' | 'F' | 'd' | 'D')?) 
+             | ('.' Digit+ Exponent? ('f' | 'F' | 'd' | 'D')?) 
+             | (Digit+ Exponent ('f' | 'F' | 'd' | 'D')?) 
+             | (Digit+ Exponent? ('f' | 'F' | 'd' | 'D'));
+
+@Fragment
+Exponent : ('e' | 'E') ('+' | '-')? Digit+;
+
+@Fragment
+HexSignificant : (('0x' | '0X') HexDigit* '.' HexDigit+) | (HexNumeral '.'?);
+
+@Fragment
+BinaryExponent : ('p' | 'P') ('+' | '-')? Digit+;
+
+@Fragment
+Escape : '\\' (('b' | 't' | 'n' | 'f' | 'r' | '\"' | '\'' | '\\') | OctalEscape | UnicodeEscape);
+
+@Fragment
+OctalEscape : ([0-3] [0-7] [0-7]) | ([0-7] [0-7]) | [0-7];
+
+@CatchMismatch
+@SyntaxOnly
+Semicolon : ';';
+
+@Fragment
+Keyword : ('abstract'     | 'continue'     | 'for'          | 'new'          | 'switch'       | 'assert'       | 'default'      | 'goto'         |
+           'package'      | 'synchronized' | 'boolean'      | 'do'           | 'if'           | 'private'      | 'this'         | 'break'        |
+           'double'       | 'implements'   | 'protected'    | 'throws'       | 'throw'        | 'byte'         | 'else'         | 'import'       | 
+           'public'       | 'case'         | 'enum'         | 'instanceof'   | 'return'       | 'transient'    | 'catch'        | 'extends'      |
+           'int'          | 'short'        | 'try'          | 'char'         | 'final'        | 'interface'    | 'static'       | 'void'         |
+           'class'        | 'finally'      | 'long'         | 'strictfp'     | 'volatile'     | 'const'        | 'float'        | 'native'       |
+           'super'        | 'while') TestNoAlpha;

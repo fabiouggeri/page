@@ -1,0 +1,1333 @@
+grammar OracleSql;
+
+/*********************************************************************************
+               RULES
+**********************************************************************************/
+
+SqlSentence : OptionalSpacing DmlSentence OptionalSpacing EOI;
+
+DmlSentence : SelectStatement 
+            | UpdateStatement 
+            | InsertStatement 
+            | DeleteStatement 
+            | CommitStatement 
+            | MergeStatement 
+            | LockTableStatement 
+            | RollbacklStatement 
+            | SavepointStatement 
+            | SetTransactionStatement;
+
+WaitMode : "wait" 
+         | "nowait";
+
+CommitComment : "comment" StringLiteral;
+
+WriteMode : "write" WaitMode? ( "immediate" | "batch" )?;
+
+ForceCommit : "force" ( ( StringLiteral ( ',' IntegerLiteral )? ) 
+                      | ( "corrupt_xid" StringLiteral ) 
+                      | "corrupt_xid_all" );
+
+NormalCommit : CommitComment? WriteMode?;
+
+CommitOptions : NormalCommit 
+              | ForceCommit;
+
+CommitStatement : "commit" "work"? CommitOptions?;
+
+LockTableStatement : "lock" "table" ( TablePartitionName | TableSubPartitionName | TableName ) "in" LockMode "mode" WaitMode?;
+
+LockMode : ( "row" "share" ) 
+         | ( "row" "exclusive" ) 
+         | ( "share" "row" "exclusive" ) 
+         | ( "share" "update" ) 
+         | "share" 
+         | "exclusive";
+
+ToSavePoint : "to" "savepoint"? SqlAnyIdentifier;
+
+ForceRollback : "force" StringLiteral;
+
+RollbackOptions : ToSavePoint 
+                | ForceRollback;
+
+RollbacklStatement : "rollback" "work"? RollbackOptions?;
+
+TransactionName : "name" StringLiteral;
+
+UseRollbackSegment : "use" "rollback" "segment" SqlAnyIdentifier;
+
+IsolationLevel : "isolation" "level" ( "serializable" | ( "read" "commited" ) | "ReadCommited" );
+
+ReadMode : ( "read" "only" ) 
+         | "ReadOnly" 
+         | ( "read" "write" ) 
+         | "ReadWrite";
+
+SetTransactionOptions : ( ( ReadMode | IsolationLevel | UseRollbackSegment ) TransactionName? ) 
+                      | TransactionName;
+
+SetTransactionStatement : "set" "transaction" SetTransactionOptions;
+
+SavepointStatement : "savepoint" SqlAnyIdentifier;
+
+SelectStatement : SubqueryFactoringClause? Subquery ForUpdateClause?;
+
+MergeUpdateClause : "when" "matched" "then" "update" UpdateSetClause WhereClause? ( "delete" WhereClause )?;
+
+MergeInsertClause : "when" "not" "matched" "then" "insert" ColumnsList ValuesClause WhereClause?;
+
+MergeStatement : "merge" Hint? 
+                 "into" TableName Alias? 
+                 "using" ( Subquery | TableName )? Alias? 
+                 "on" '(' SqlCondition ')' 
+                 ( ( MergeUpdateClause MergeInsertClause ) 
+                 | ( MergeInsertClause MergeUpdateClause ) 
+                 | MergeInsertClause 
+				     | MergeUpdateClause )? 
+                 ErrorLogingClause?;
+
+BlockHint : '/*+' ('*/'! .)* '*/';
+
+LineHint : '--+' (( '\r' | '\n')!.)* ( '\r\n' | '\r' | '\n' );
+
+Hint : BlockHint 
+     | LineHint;
+
+ListAllFields : TableName '.' '*';
+
+SelectListExpressionElement : SqlExpression ColumnAlias?;
+
+SelectListElement : ListAllFields 
+                  | SelectListExpressionElement;
+
+ColumnAlias : "as"? SqlIdentifier;
+
+@SkipNode
+CommaSelectListElement : ',' SelectListElement;
+
+@SkipNode
+ZeroOrMoreCommaSelectListElement : CommaSelectListElement*;
+
+@SkipNode
+ListOfSelectListElement : SelectListElement ZeroOrMoreCommaSelectListElement;
+
+SelectList : '*' 
+           | ListOfSelectListElement;
+
+SubqueryReadOnlyRestriction : "read" "only";
+
+SubqueryCheckConstraintName : ( "constraint" SqlAnyIdentifier )?;
+
+SubqueryCheckOptionRestriction : "check" "option" SubqueryCheckConstraintName;
+
+SubqueryRestrictionType : SubqueryReadOnlyRestriction 
+                        | SubqueryCheckOptionRestriction;
+
+SubqueryRestriction : ( "with" SubqueryRestrictionType )?;
+
+SampleNumber : '(' UnsignedNumber ')';
+
+Seed : "seed" '(' IntegerLiteral ')';
+
+SampleClause : "sample" "block"? SampleNumber Seed?;
+
+TableOrView : ( TablePartitionName | TableSubPartitionName | TableName ) SampleClause?;
+
+@SkipNode
+QueryTableExpression : TableOrView 
+                     | Subquery 
+					      | TableCollectionExpression;
+
+DBLink : '@' SqlAnyIdentifier;
+
+TableName : SchemaObjectName DBLink?;
+
+SqlFunctionCallAsIdentifier : SqlObjectIdentifier "as" SqlAnyIdentifier;
+
+CollectionExpression : Subquery 
+                     | SqlObjectIdentifier;
+
+TableCollectionExpression : "table" '(' CollectionExpression ')' OuterJoinSign?;
+
+SqlMathOperator : '**' 
+                | '*' 
+                | '/' 
+                | '+' 
+                | '-' 
+                | ( '|' '|' ) 
+                | "mod";
+
+@SkipNode
+SqlExpression : SqlMathExpression 
+              | SqlAtomicExpression;
+
+SqlMathExpression : SqlAtomicExpression SqlMathOperator SqlExpression;
+
+@SkipNode
+ParenthesesSqlExpression : '(' SqlExpression ')';
+
+SqlUnaryOperator : '+' 
+                 | '-' 
+                 | "prior"
+                 | "connect_by_root";
+
+SqlUnaryExpression : SqlUnaryOperator SqlLeftAtomicExpression;
+
+@SkipNode
+SqlLeftAtomicExpression : ParenthesesSqlExpression 
+                        | SqlCaseExpression 
+                        | CursorExpression 
+                        | PlaceHolderExpression 
+                        | TypeConstructorExpression 
+                        | Subquery 
+                        | BuiltInFunctionCall 
+                        | SqlSimpleExpression 
+                        | SysDate 
+                        | SqlUnaryExpression 
+                        | ModelExpression;
+
+DateTimeExpression : SqlLeftAtomicExpression TimeExpression;
+
+@SkipNode
+SqlAtomicExpression : DateTimeExpression 
+                    | SqlLeftAtomicExpression;
+
+SqlCaseExpression : "case" ( SqlSearchedCaseExpression | SqlSimpleCaseExpression ) SqlCaseExpressionElse? "end" "case"?;
+
+SqlWhenExpressionThen : "when" SqlExpression "then" SqlExpression;
+
+SqlSimpleCaseExpression : SqlExpression SqlWhenExpressionThen+;
+
+SqlWhenConditionThen : "when" SqlCondition "then" SqlExpression;
+
+SqlSearchedCaseExpression : SqlWhenConditionThen+;
+
+SqlCaseExpressionElse : "else" SqlExpression;
+
+RowNum : "rownum";
+
+IdentifiedRowId : TableName '.' "rowid";
+
+RowIdColumn : IdentifiedRowId 
+            | "rowid";
+
+Level : "level";
+
+SqlOuterJoinObject : SqlObjectIdentifier OuterJoinSign;
+
+@SkipNode
+SqlSimpleExpression : SqlLiteral 
+                    | RowNum 
+                    | RowIdColumn 
+                    | Level 
+                    | SqlOuterJoinObject 
+                    | SqlObjectIdentifier;
+
+SysDate : "sysdate";
+
+TimeExpression : ( "at" ( "local" | ( "time" "zone" ( "dbtimezone" | "sessiontimezone" | StringLiteral | SqlExpression ) ) ) ) 
+               | "DatetimeExpression" 
+               | ( ( "day" '(' [0-9] ')' "to" "second" ( '(' [0-9] ')' )? ) | ( "year" '(' [0-9] ')' "to" "month" ) ) 
+               | "IntervalExpression";
+
+OuterJoinSign : '(' '+' ')';
+
+OrderByFunctionClause : "order" "by" OrderByArguments;
+
+Avg : "avg" '(' ( DistinctExpression | AllExpression | SqlExpression ) ')' AnalyticOverClause?;
+
+Cast : "cast" '(' ( ( "multiset" '(' Subquery ')' ) | "MultiSet" | SqlExpression ) AsDataType ')';
+
+Chr : "chr" '(' SqlExpression ( "using" "nchar_cs" )? ')';
+
+MiningAttributeClause : "using" SelectList;
+
+ClusterId : "cluster_id" '(' SchemaObjectName MiningAttributeClause ')';
+
+ClusterProbability : "cluster_probability" '(' SchemaObjectName ( ',' SqlExpression )? MiningAttributeClause ')';
+
+ClusterSet : "cluster_set" '(' SqlObjectIdentifier ( ',' SqlExpression )? ( ',' SqlExpression )? MiningAttributeClause ')';
+
+Corr : "corr" '(' SqlExpression SqlExpression ')' AnalyticOverClause?;
+
+DistinctExpression : "distinct" SqlExpression;
+
+AllExpression : "all" SqlExpression;
+
+Count : "count" '(' ( '*' | DistinctExpression | AllExpression | SqlExpression ) ')' AnalyticOverClause?;
+
+CovarPop : "covar_pop" '(' SqlExpression SqlExpression ')' AnalyticOverClause?;
+
+CovarSamp : "covar_samp" '(' SqlExpression SqlExpression ')' AnalyticOverClause?;
+
+CumeDistAnalytic : "cume_dist" '(' ')' "over" '(' QueryPartitionClause? OrderByClause ')';
+
+CumeDistAggregate : "cume_dist" SqlParameters "with" "group" '(' OrderByFunctionClause ')';
+
+Decompose : "decompose" '(' SqlExpression ( "canonical" | "compatibility" )? ')';
+
+DenseRankAggregate : "dense_rank" SqlParameters "with" "group" '(' OrderByFunctionClause ')';
+
+DenseRankAnalytic : "dense_rank" '(' ')' "over" '(' QueryPartitionClause? OrderByClause ')';
+
+OverQueryPartitionClause : "over" QueryPartitionClause;
+
+OverParenthesesQueryPartitionClause : "over" '(' QueryPartitionClause ')';
+
+DenseRankClause : "keep" '(' "dense_rank" ( "first" | "last" ) OrderByFunctionClause OverQueryPartitionClause? ')';
+
+DataToExtract : "year" 
+              | "month" 
+			     | "day" 
+			     | "hour" 
+			     | "minute" 
+			     | "second" 
+			     | "timezone_hour" 
+			     | "timezone_minute" 
+			     | "timezone_region" 
+			     | "timezone_abbr";
+
+Extract : "extract" '(' DataToExtract "from" SqlExpression ')';
+
+FeatureId : "feature_id" '(' SqlObjectIdentifier MiningAttributeClause ')';
+
+FeatureSet : "feature_set" '(' SchemaObjectName ( ',' SqlExpression )? ( ',' SqlExpression )? MiningAttributeClause ')';
+
+FeatureValue : "feature_value" '(' SchemaObjectName ( ',' SqlExpression )? MiningAttributeClause ')';
+
+IgnoreNulls : "ignore" "nulls";
+
+FirstValue : "first_value" '(' SqlExpression IgnoreNulls? ')' AnalyticOverClause;
+
+Lag : "lag" '(' SqlExpression ( ',' SqlExpression )? ( ',' SqlExpression )? ')' "over" '(' QueryPartitionClause? OrderByClause ')';
+
+LastValue : "last_value" '(' SqlExpression IgnoreNulls? ')' AnalyticOverClause;
+
+Lead : "lead" '(' SqlExpression ( ',' IntegerLiteral )? ( ',' IntegerLiteral )? ')' "over" '(' QueryPartitionClause? OrderByClause ')';
+
+ListAgg : "listagg" '(' SqlExpression ( ',' StringLiteral )? ')' "within" "group" '(' OrderByClause ')' OverQueryPartitionClause?;
+
+Max : "max" '(' ( DistinctExpression | AllExpression | SqlExpression ) ')' AnalyticOverClause?;
+
+Median : "median" '(' SqlExpression ')' OverParenthesesQueryPartitionClause?;
+
+Min : "min" '(' ( DistinctExpression | AllExpression | SqlExpression ) ')' AnalyticOverClause?;
+
+NTile : "ntile" '(' SqlExpression ')' "over" '(' QueryPartitionClause? OrderByClause ')';
+
+PercentRankAggregate : "percent_rank" SqlParameters "within" "group" '(' OrderByFunctionClause ')';
+
+PercentRankAnalytic : "percent_rank" '(' ')' "over" '(' QueryPartitionClause? OrderByClause ')';
+
+PercentileCont : "percentile_cont" '(' SqlExpression ')' "within" "group" '(' "order" "by" SqlExpression ( "asc" | "desc" )? ')' OverParenthesesQueryPartitionClause?;
+
+PercentileDisc : "percentile_disc" '(' SqlExpression ')' "within" "group" '(' "order" "by" SqlExpression ( "asc" | "desc" )? ')' OverParenthesesQueryPartitionClause?;
+
+CostMatrixClauseValues : '(' SqlExpressionList ')' "values" '(' ParenthesesSqlExpressionList ')';
+
+CostMatrixClauseModel : "model" "auto"? "Auto";
+
+CostMatrixClause : "cost" ( CostMatrixClauseModel | CostMatrixClauseValues );
+
+Prediction : "prediction" '(' SchemaObjectName CostMatrixClause? MiningAttributeClause ')';
+
+PredictionBounds : "prediction_bounds" '(' SchemaObjectName ( ',' SqlExpression )? ( ',' SqlExpression )? MiningAttributeClause ')';
+
+PredictionCost : "prediction_cost" '(' SchemaObjectName ( ',' SqlExpression )? CostMatrixClause MiningAttributeClause ')';
+
+PredictionDetails : "prediction_details" '(' SchemaObjectName MiningAttributeClause ')';
+
+PredictionProbability : "prediction_probability" '(' SchemaObjectName MiningAttributeClause ')';
+
+PredictionSet : "prediction_set" '(' SchemaObjectName ( ',' SqlExpression )? ( ',' SqlExpression )? CostMatrixClause? MiningAttributeClause ')';
+
+RankAggregate : "rank" SqlParameters "within" "group" '(' OrderByFunctionClause ')';
+
+RankAnalytic : "rank" '(' ')' "over" '(' QueryPartitionClause? OrderByClause ')';
+
+RatioToReport : "ratio_to_report" ParenthesesSqlExpression "over" '(' QueryPartitionClause? ')';
+
+RegrLinearFunctions : ( "regr_avg" 
+                      | "regr_intercept" 
+					  | "regr_count" 
+					  | "regr_r2" 
+					  | "regr_avgx" 
+					  | "regr_avgy" 
+					  | "regr_sxx" 
+					  | "regr_syy" 
+					  | "regr_sxy" ) "FunctionName" '(' SqlExpression ',' SqlExpression ')' AnalyticOverClause?;
+
+RowNumber : "row_number" '(' ')' "over" '(' QueryPartitionClause? OrderByClause ')';
+
+StdDev : "stddev" '(' ( DistinctExpression | AllExpression | SqlExpression ) ')' AnalyticOverClause?;
+
+StdDevPop : "stddev_pop" '(' SqlExpression ')' AnalyticOverClause?;
+
+StdDevSamp : "stddev_samp" '(' SqlExpression ')' AnalyticOverClause?;
+
+Sum : "sum" '(' ( DistinctExpression | AllExpression | SqlExpression ) ')' AnalyticOverClause?;
+
+Translate : "translate" '(' SqlExpression "using" ( "char_cs" | "nchar_cs" ) "CharType" ')';
+
+Treat : "treat" '(' SqlExpression "as" "ref"? SchemaObjectName ')';
+
+TrimMode : ( ( "leading" SqlExpression ) 
+           | ( "trailing" SqlExpression ) 
+		   | ( "both" SqlExpression ) 
+		   | "leading" 
+		   | "trailing" 
+		   | "both" 
+		   | SqlExpression ) "from";
+
+Trim : "trim" '(' TrimMode? SqlExpression ')';
+
+VarPop : "var_pop" '(' SqlExpression ')' AnalyticOverClause?;
+
+VarSamp : "var_samp" '(' SqlExpression ')' AnalyticOverClause?;
+
+Variance : "variance" '(' ( DistinctExpression | AllExpression | SqlExpression ) ')' AnalyticOverClause?;
+
+XmlAgg : "xmlagg" '(' SqlExpression OrderByClause? ')';
+
+XmlAlias : "as" ( ( "evalname" SqlExpression ) | SqlAnyIdentifier );
+
+XmlCast : "xmlcast" '(' SqlExpression "as" SqlDataType ')';
+
+XmlPar : SqlExpression XmlAlias?;
+
+XmlColAttVal : "xmlcolattval" '(' XmlPar ( ',' XmlPar )* ')';
+
+XmlAttributesClause : "xmlattributes" '(' ( "entityescaping" | "noentityescaping" )? ( "schemacheck" | "noschemacheck" )? XmlPar ( ',' XmlPar )* ')';
+
+XmlElement : "xmlelement" '(' 
+            ( "entityescaping" | "noentityescaping" )? 
+			( ( "evalname" SqlExpression ) 
+			| ( "name" SqlAnyIdentifier ) 
+			| SqlAnyIdentifier ) 
+			( ',' XmlAttributesClause )? 
+			( ',' SqlExpression AsAlias? )* ')';
+
+AsAlias : "as" SqlAnyIdentifier;
+
+AliasedExpression : SqlExpression AsAlias?;
+
+XmlPassingClause : "passing" ( "by" "value" )? AliasedExpression ( ',' AliasedExpression )*;
+
+XmlExists : "xmlexists" '(' StringLiteral XmlPassingClause? ')';
+
+XmlForest : "xmlforest" '(' XmlPar ( ',' XmlPar )* ')';
+
+XmlParse : "xmlparse" '(' ( "document" | "content" ) SqlExpression "wellformed"? ')';
+
+XmlPI : "xmlpi" 
+        '(' 
+        ( ( "evalname" SqlExpression ) 
+		| ( "name" SqlAnyIdentifier ) 
+		| SqlAnyIdentifier ) 
+		( ',' SqlExpression )? 
+		')';
+
+XmlQuery : "xmlquery" '(' SqlExpression XmlPassingClause? "returning" "content" ( "null" "on" "empty" )? ')';
+
+XmlRoot : "xmlroot" '(' SqlExpression ',' "version" ( ( "no" "value" ) | SqlExpression ) ( ',' "standalone" ( "yes" | ( "no" "value" ) ) )? ')';
+
+AsDataType : "as" SqlDataType;
+
+XmlSerialize : "xmlparse" 
+               '(' 
+			      ( "document" | "content" ) 
+			      SqlExpression 
+			      AsDataType? 
+			      ( "encoding" SqlExpression )? 
+			      ( "version" StringLiteral )? 
+			      ( ( "no" "indent" ) 
+			      | ( "indent" ( "size" '=' SqlExpression )? ) )? 
+			      ( ( "hide" | "show" ) "defaults" )? 
+			      ')';
+
+XmlNamespacesArg : StringLiteral AsAlias;
+
+XmlNamespacesArgs : XmlNamespacesArg ( ',' XmlNamespacesArg )*;
+
+XmlNamespacesClause : "xmlnamespaces" '(' XmlNamespacesArgs? ( "default" StringLiteral )? ')';
+
+XmlTableColumn : SqlIdentifier 
+                 ( ( "for" "ordinality" ) 
+				 | ( SqlDataType ( "path" StringLiteral )? ( "default" SqlExpression )? ) );
+
+XmlTableOptions : XmlPassingClause? ( "columns" XmlTableColumn ( ',' XmlTableColumn )* )?;
+
+XmlTable : "xmltable" '(' XmlNamespacesClause? SqlExpression XmlTableOptions ')';
+
+BuiltInFunctionCall : AnalyticFunctionCall 
+                    | Cast 
+					| Chr 
+					| ClusterId 
+					| ClusterProbability 
+					| ClusterSet 
+					| CumeDistAggregate 
+					| Decompose 
+					| DenseRankAggregate 
+					| Extract 
+					| FeatureId 
+					| FeatureSet 
+					| FeatureValue 
+					| FirstValue 
+					| LastValue 
+					| Lead 
+					| ListAgg 
+					| Max 
+					| Median 
+					| Min 
+					| NTile 
+					| PercentRankAggregate 
+					| PercentRankAnalytic 
+					| Prediction 
+					| PredictionBounds 
+					| PredictionCost 
+					| PredictionDetails 
+					| PredictionProbability 
+					| PredictionSet 
+					| RankAggregate 
+					| RankAnalytic 
+					| Translate 
+					| Treat 
+					| Trim 
+					| XmlAgg 
+					| XmlCast 
+					| XmlColAttVal 
+					| XmlElement 
+					| XmlExists 
+					| XmlForest 
+					| XmlParse 
+					| XmlPI 
+					| XmlQuery 
+					| XmlRoot 
+					| XmlTable;
+
+AnalyticFunctionCall : Avg 
+                     | Corr 
+					      | Count 
+					      | CovarPop 
+					      | CovarSamp 
+					      | CumeDistAnalytic 
+					      | DenseRankAnalytic 
+					      | Lag 
+					      | PercentileCont 
+					      | PercentileDisc 
+					      | RatioToReport 
+					      | RegrLinearFunctions 
+					      | RowNumber 
+					      | StdDev 
+					      | StdDevPop 
+					      | StdDevSamp 
+					      | Sum 
+					      | VarPop 
+					      | VarSamp 
+                     | Variance;
+
+SqlIdentifiedFunctionParameter : SqlAnyIdentifier ( '=' '>' ) SqlExpression;
+
+@Rule(FunctionParameter)
+SqlFunctionParameter : SqlIdentifiedFunctionParameter 
+                     | SqlExpression;
+
+UnboundedPreceding : "unbounded" "preceding";
+
+UnboundedFollowing : "unbounded" "following";
+
+CurrentRow : "current" "row";
+
+Preceding : SqlExpression "preceding";
+
+Following : SqlExpression "following";
+
+BetweenWindowingClause : "between" 
+                         ( UnboundedPreceding | CurrentRow | Preceding | Following ) 
+						 "and" 
+						 ( UnboundedFollowing | CurrentRow | Preceding | Following );
+
+WindowingClause : ( "rows" | "range" ) 
+                  ( BetweenWindowingClause | UnboundedPreceding | CurrentRow | Preceding );
+
+AnalyticOverClause : "over" '(' QueryPartitionClause? ( OrderByClause WindowingClause? )? ')';
+
+ModelExpression : ( AnalyticFunctionCall ( '[' ( CellReferenceArgumentsList | MultiColumnForLoop ) ']' )? ) 
+                | ( SqlObjectIdentifier '[' ConditionOrExpressionList ']' );
+
+CursorExpression : "cursor" '(' Subquery ')';
+
+ConditionOrExpression : SqlCondition 
+                      | SqlExpression;
+
+ConditionOrExpressionList : ConditionOrExpression ( ',' ConditionOrExpression )*;
+
+CellReferenceArgumentsList : CellReferenceArgument ( ',' CellReferenceArgument )*;
+
+CellReferenceArgument : SqlCondition 
+                      | SqlExpression 
+			             | SingleColumnForLoop;
+
+PlaceHolderExpression : BindVariable ( "indicator"? BindVariable )?;
+
+TypeConstructorExpression : "new" SchemaObjectName '(' SqlExpressionList ')';
+
+PivotForClause : "for" ( SqlAnyIdentifier | ( '(' SqlIdentifierList ')' ) );
+
+AnyList : "any" ( ',' "any" )*;
+
+SqlExpressionList : SqlExpression ( ',' SqlExpression )*;
+
+@SkipNode
+ParenthesesSqlExpressionList : '(' SqlExpressionList ')';
+
+PivoInExpressionList : PivotInExpression ( ',' PivotInExpression )*;
+
+AsOptionalAlias : "as"? SqlIdentifier;
+
+PivotInExpression : SqlExpressionList AsOptionalAlias?;
+
+PivotInClause : "in" '(' ( AnyList | Subquery | PivoInExpressionList ) ')';
+
+PivotClause : "pivot" "xml"? '(' SqlAnyIdentifier '(' SqlExpression ')' AsOptionalAlias? PivotForClause PivotInClause ')';
+
+IncludeNulls : "include" "nulls";
+
+ExcludeNulls : "exclude" "nulls";
+
+UnpivotClause : "unpivot" 
+                ( IncludeNulls | ExcludeNulls )? 
+				'(' ( SqlObjectIdentifier | ColumnsList ) PivotForClause UnpivotInClause ')';
+
+UnpivotInClause : "in" '(' UnpivotInClauseList ')';
+
+UnpivotInElement : ( SqlObjectIdentifier | ColumnsList ) ( "as" ( SqlLiteral | ParenthesesLiteralList ) )?;
+
+UnpivotInClauseList : UnpivotInElement ( ',' UnpivotInElement )*;
+
+SqlLiteralList : SqlLiteral ( ',' SqlLiteral )*;
+
+@SkipNode
+ParenthesesLiteralList : '(' SqlLiteralList ')';
+
+@SkipNode
+ParenthesesLiteralListList : ParenthesesLiteralList ( ',' ParenthesesLiteralList )*;
+
+@Atomic
+Schema : SqlIdentifier;
+
+@Atomic
+Table : SqlIdentifier;
+
+@Atomic
+Object : SqlIdentifier;
+
+@Atomic
+Column : SqlIdentifier;
+
+SchemaObjectName : ( Schema '.' Object )
+                 | Object;
+
+ColumnName : ( Schema '.' Table '.' Column ) 
+           | ( Table '.' Column ) 
+		     | Column;
+
+ColumnsList : '(' ColumnName ( ',' ColumnName )* ')';
+
+OnlyQueryTableExpression : "only" '(' QueryTableExpression ')';
+
+QueryTableExpressionPivotClause : QueryTableExpression PivotClause;
+
+QueryTableExpressionUnpivotClause : QueryTableExpression UnpivotClause;
+
+@SkipNode
+QueryTableExpressionType : OnlyQueryTableExpression 
+                         | QueryTableExpressionPivotClause 
+						       | QueryTableExpressionUnpivotClause 
+						       | QueryTableExpression;
+
+TableReference : QueryTableExpressionType FlashbackQueryClause? SqlIdentifier?;
+
+VersionsBetween : "versions" "between" ( "scn" | "timestamp" ) ( "minvalue" | SqlExpression ) "and" ( "maxvalue" | SqlExpression );
+
+FlashbackQueryClause : VersionsBetween? "as" "of" ( "scn" | "timestamp" ) SqlExpression;
+
+EqualityOperator : ( '=' '>'! ) 
+                 | ( '<' '>' ) 
+                 | ( '!' '=' ) 
+                 | ( '^' '=' ) 
+                 | ( '~' '=' );
+
+RelationalOperator : ( '=' '>'! ) 
+                   | ( '<' '>' ) 
+                   | ( '!' '=' ) 
+                   | ( '^' '=' ) 
+                   | ( '~' '=' ) 
+                   | ( '>' '=' ) 
+                   | ( '<' '=' ) 
+                   | ( '>' '='! ) 
+                   | ( '<' ( '=' | '>' )! );
+
+SqlCondition : AndCondition | OptionalOrCondition;
+
+AndCondition : OptionalOrCondition "and" SqlCondition;
+
+@SkipNode
+OptionalOrCondition : OrCondition | SimpleCondition;
+
+OrCondition : SimpleCondition "or" OptionalOrCondition;
+
+@SkipNode
+ParenthesesCondition : '(' SqlCondition ')';
+
+@SkipNode
+SimpleCondition : ExistsCondition 
+                | IsCondition 
+                | RelationalCondition 
+                | RelationalGroupCondition 
+                | InCondition 
+                | IsASetCondition 
+                | IsAnyCondition 
+                | IsEmptyCondition 
+                | IsOfTypeCondition 
+                | IsPresentCondition 
+                | LikeCondition 
+                | RegexCondition 
+                | MemberCondition 
+                | BetweenCondition 
+                | SubMultiSetCondition 
+                | EqualsPathCondition 
+                | UnderPathCondition 
+                | ParenthesesCondition
+                | NotCondition;
+
+ExistsCondition : "exists" '(' Subquery ')';
+
+NotCondition : "not" SqlCondition;
+
+Not : "not";
+
+IsConditionOption : "null" 
+                  | "nan" 
+				      | "infinite";
+
+IsCondition : SqlExpression "is" Not? IsConditionOption;
+
+Prior : "prior";
+
+RelationalCondition : Prior? SqlExpression RelationalOperator Prior? SqlExpression;
+
+GroupConditionCoverageType : "any" 
+                           | "some" 
+						         | "all";
+
+EqualityGroupCondition : ParenthesesSqlExpressionList EqualityOperator GroupConditionCoverageType? ParenthesesSqlExpressionList;
+
+AnyRelationalGroupCondition : SqlExpression RelationalOperator GroupConditionCoverageType ParenthesesSqlExpressionList;
+
+RelationalGroupCondition : EqualityGroupCondition 
+                         | AnyRelationalGroupCondition;
+
+inExpressionList : ParenthesesSqlExpressionList 
+                 | SqlExpression;
+
+InCondition : inExpressionList 
+              Not? "in" 
+              ( ParenthesesSqlExpressionList | SqlObjectIdentifier );
+
+IsASetCondition : SqlObjectIdentifier "is" Not? "a" "set";
+
+ObjectIs : SqlObjectIdentifier "is";
+
+IsAnyCondition : ObjectIs? "any";
+
+IsEmptyCondition : ObjectIs Not? "empty";
+
+IsOfTypeCondition : SqlExpression "is" Not? "of" "type"? '(' IsOfTypeList ')';
+
+Only : "only";
+
+IsTypeOfObject : Only? SqlObjectIdentifier;
+
+IsOfTypeList : IsTypeOfObject ( ',' IsTypeOfObject )*;
+
+IsPresentCondition : SqlObjectIdentifier "is" "present";
+
+LikeOperator : "like" 
+             | "likec" 
+			 | "like2" 
+			 | "like4";
+
+Escape : "escape" SqlExpression;
+
+LikeCondition : SqlExpression Not? LikeOperator SqlExpression Escape?;
+
+MatchParam : ',' StringLiteral;
+
+RegexCondition : "regexp_like" '(' SqlExpression ',' SqlExpression MatchParam? ')';
+
+MemberCondition : SqlExpression Not? "member" "of"? SqlObjectIdentifier;
+
+BetweenCondition : SqlExpression Not? "between" SqlExpression "and" SqlExpression;
+
+SubMultiSetCondition : SqlObjectIdentifier Not? "ubmultiset" "of"? SqlObjectIdentifier;
+
+CorrelationInteger : ',' IntegerLiteral;
+
+EqualsPathCondition : "equals_path" '(' SqlObjectIdentifier ',' IdentifierOrStringLiteral CorrelationInteger? ')';
+
+UnderPathLevels : ',' IntegerLiteral;
+
+UnderPathCondition : "under_path" '(' SqlObjectIdentifier UnderPathLevels? ',' IdentifierOrStringLiteral CorrelationInteger ')';
+
+IdentifierOrStringLiteral : StringLiteral 
+                          | SqlIdentifier;
+
+OnCondition : "on" SqlCondition;
+
+Using : "using" '(' SqlIdentifierList ')';
+
+InnerCrossJoinClause : ( "inner"? "join" TableReference ( OnCondition | Using ) ) 
+                     | ( ( "cross" | ( "natural" "inner"? ) ) "join" TableReference );
+
+NaturalOuterJoin : "natural" OuterJoinType? "join";
+
+NormalOuterJoin : OuterJoinType "join";
+
+OuterJoinClause : QueryPartitionClause? ( NaturalOuterJoin | NormalOuterJoin ) TableReference QueryPartitionClause? ( OnCondition | Using );
+
+JoinClauseType : InnerCrossJoinClause 
+               | OuterJoinClause;
+
+JoinClause : JoinClauseType*;
+
+OuterJoinType : ( "full" 
+                | "left" 
+				| "right" ) "outer"?;
+
+QueryPartitionClause : "partition" "by" SqlExpressionList;
+
+FromArgument : TableReference JoinClause;
+
+FromClause : "from" FromArgument ( ',' FromArgument )*;
+
+CurrentOf : "current" "of" SqlObjectIdentifier;
+
+WhereClause : "where" ( CurrentOf | SqlCondition );
+
+BulkCollect : "bulk" "collect";
+
+SelectIntoClause : BulkCollect? 
+                   "into" 
+                   ( ( '(' SqlObjectIdentifierList ')' ) 
+				       | SqlObjectIdentifierList );
+
+Distinct : "distinct" 
+         | "unique" 
+		 | "all";
+
+UnionType : ( "union" "all" ) 
+          | "union" 
+		  | "intersect" 
+		  | "minus";
+
+UnionClause : UnionType Subquery;
+
+QueryBlock : "select" Hint? Distinct? SelectList SelectIntoClause? FromClause WhereClause? HierarchicalQueryClause? GroupByClause? HavingClause? ModelClause?;
+
+EnclosedSubquery : '(' Subquery ')';
+
+Subquery : ( EnclosedSubquery | QueryBlock ) UnionClause? OrderByClause?;
+
+NoCycleOption : "nocycle"?;
+
+StartWithCondition : "start" "with" SqlCondition;
+
+ConnectByCondition : "connect" "by" NoCycleOption SqlCondition;
+
+ConnectBy : ConnectByCondition StartWithCondition?;
+
+StartWith : StartWithCondition ConnectByCondition;
+
+HierarchicalQueryClause : ConnectBy | StartWith;
+
+GroupByArgument : RollupCubeClause 
+                | GroupingSetsClause 
+				| SqlExpression;
+
+GroupByArguments : GroupByArgument ( ',' GroupByArgument )*;
+
+RollupCubeClause : ( "rollup" | "cube" ) '(' GroupingExpressionList ')';
+
+GroupingExpressionList : SqlExpressionList ( ',' SqlExpressionList )*;
+
+GroupingSetsClause : "grouping" "sets" '(' GroupingSetsClauseArguments ')';
+
+GroupingSetsClauseArgument : RollupCubeClause 
+                           | GroupingExpressionList;
+
+GroupingSetsClauseArguments : GroupingSetsClauseArgument ( ',' GroupingSetsClauseArgument )*;
+
+GroupByClause : "group" "by" GroupByArguments HavingClause?;
+
+HavingClause : "having" SqlCondition;
+
+ModelClause : "model" CellReferenceOptions ReturnRowsClause ReferenceModel MainModel;
+
+CellReferenceOptions : ( ( "ignore" | "keep" ) "nav" )? 
+                       ( "unique" ( "dimension" | ( "single" "reference" ) ) )?;
+
+ReturnRowsClause : ( "return" ( "updated" | "all" ) "rows" )?;
+
+ReferenceModel : ( "reference" SqlAnyIdentifier "on" '(' Subquery ')' ModelColumnClause CellReferenceOptions )*;
+
+ModelColumnPartition : QueryPartitionClause SqlIdentifier?;
+
+ModelColumnClause : ModelColumnPartition? "dimension" "by" '(' ModelColumnList ')' "measures" '(' ModelColumnList ')';
+
+ModelColumnList : ModelColumn ( ',' ModelColumn )*;
+
+ModelColumn : SqlExpression AsOptionalAlias?;
+
+MainModel : ( "main" SqlAnyIdentifier )? ModelColumnClause CellReferenceOptions ModelRulesClause;
+
+ModelRulesUpdate : ( "rules" 
+                     ( "update" | ( "upsert" "all"? ) )? 
+				     ( ( "automatic" | "sequential" ) "order" )? )?;
+
+UntilCondition : "until" '(' SqlCondition ')';
+
+ModelRulesIterate : "iterate" '(' NumberLiteral ')' UntilCondition?;
+
+ModelRulesClause : ModelRulesUpdate ModelRulesIterate? '(' ModelRulesClauseCellAssignmentList ')';
+
+ModelRulesClauseCellAssignmentList : ModelRulesClauseCellAssignment ( ',' ModelRulesClauseCellAssignment )*;
+
+ModelRulesClauseCellAssignment : ( "update" | ( "upsert" "all"? ) )? CellAssignment OrderByClause? '=' SqlExpression;
+
+CellAssignment : SqlAnyIdentifier '[' ( CellAssignmentArgumentsList | MultiColumnForLoop ) ']';
+
+CellAssignmentArgumentsList : CellAssignmentArgument ( ',' CellAssignmentArgument )*;
+
+CellAssignmentArgument : SqlCondition 
+                       | SqlExpression 
+					        | SingleColumnForLoop;
+
+ForIn : "in" '(' ( SqlLiteralList | Subquery ) ')';
+
+LikeString : "like" StringLiteral;
+
+ForLike : LikeString? "from" SqlLiteral "to" SqlLiteral ( "increment" | "decrement" ) SqlLiteral;
+
+SingleColumnForLoop : "for" SqlIdentifier ( ForIn | ForLike );
+
+MultiColumnForLoop : "for" '(' SqlIdentifierList ')' "in" '(' ( ParenthesesLiteralListList | Subquery ) ')';
+
+@SkipNode
+SqlLiteral : NumberLiteral 
+           | StringLiteral 
+		     | DateLiteral 
+		     | TimestampLiteral 
+		     | IntervalDayToSecondLiteral 
+		     | IntervalYearToMonthLiteral 
+		     | NullLiteral;
+
+@SkipNode
+NullLiteral : NullPattern TestNoAlpha OptionalSpacing;
+
+@Rule(NullLiteral)
+@NotExtendLiterals
+NullPattern : "null";
+
+@SkipNode
+DateLiteral : DatePattern "DateLiteral" OptionalSpacing;
+
+Year : [0-9] [0-9] [0-9] [0-9];
+
+Month : [0-9] [0-9];
+
+Day : [0-9] [0-9];
+
+Hour : [0-9] [0-9];
+
+Minute : [0-9] [0-9];
+
+Second : [0-9] [0-9];
+
+@Atomic
+@Rule(DateLiteral)
+DatePattern : "date" '\'' Spaces? Year Spaces? '-' Spaces? Month Spaces? '-' Spaces? Day Spaces? '\'';
+
+@SkipNode
+TimestampLiteral : TimestampPattern OptionalSpacing;
+
+@Rule(TimestampLiteral)
+@Atomic
+TimestampPattern : "timestamp" '\'' Spaces? Year Spaces? '-' Spaces? Month Spaces? '-' Spaces? Day Spaces? Hour Spaces? ':' Spaces? Minute Spaces? ':' Spaces? Second Spaces? '\'';
+
+@SkipNode
+StringLiteral : StringPattern OptionalSpacing;
+
+@Rule(String)
+@Atomic
+StringPattern : ( 'n' | 'N' )? ( '\'' ( "''" | ( '\''! .) )* '\'' );
+
+Order : "asc" 
+      | "desc";
+
+NullsOrder : "nulls" ( "first" | "last" );
+
+OrderByArg : IntegerLiteral 
+           | SqlExpression;
+
+OrderByArgument : OrderByArg Order? NullsOrder?;
+
+OrderByArguments : OrderByArgument ( ',' OrderByArgument )*;
+
+OrderByClause : "order" "siblings"? "by" OrderByArguments;
+
+SubqueryFactoringSource : SqlIdentifier "as" '(' Subquery ')';
+
+SubqueryFactoringClause : "with" SubqueryFactoringSource ( ',' SubqueryFactoringSource )*;
+
+WaitClause : "nowait" 
+           | ( "wait" IntegerLiteral ) 
+		     | ( "skip" "locked" );
+
+ForUpdateClause : "for" "update" ( "of" TableName )? WaitClause?;
+
+OnlyDmlTableExpresionClause : "only" '(' DmlTableExpressionClause ')';
+
+UpdateStatement : "update" Hint? ( OnlyDmlTableExpresionClause | DmlTableExpressionClause ) SqlIdentifier? UpdateSetClause WhereClause? ReturningClause?;
+
+PartitionName : '(' SqlAnyIdentifier ')';
+
+PartitionKey : "for" '(' SqlExpression ')';
+
+TablePartitionName : TableName "partition" ( PartitionName | PartitionKey );
+
+TableSubPartitionName : TableName "subpartition" ( PartitionName | PartitionKey );
+
+SubqueryDmlExpression : '(' Subquery SubqueryRestriction ')';
+
+DmlTableExpressionClause : TablePartitionName 
+                         | TableSubPartitionName 
+                         | TableName 
+                         | SubqueryDmlExpression 
+                         | TableCollectionExpression;
+
+UpdateSetClause : "set" ( ObjectSetValue | ColumnSetValueList );
+
+@Atomic
+Alias : SqlIdentifier;
+
+ObjectSetValue : "value" '(' Alias ')' '=' ( ( '(' Subquery ')' ) | SqlExpression );
+
+ColumnsGroupSetValue : ColumnsList '=' '(' Subquery ')';
+
+SingleColumnSetValue : ColumnName '=' ( "default" | ( '(' Subquery ')' ) | SqlExpression );
+
+ColumnSetValue : ColumnsGroupSetValue 
+               | SingleColumnSetValue;
+
+ColumnSetValueList : ColumnSetValue ( ',' ColumnSetValue )*;
+
+ReturningClause : ( "returning" | "return" ) 
+                  SqlExpressionList BulkCollect? 
+                  "into" 
+                  ReturnIntoVariablesList;
+
+BindVariable : '?' 
+             | ( ':' ( SqlAnyIdentifier | IntegerLiteral ) );
+
+ReturnIntoVariable : BindVariable 
+                   | SqlObjectIdentifier;
+
+ReturnIntoVariablesList : ReturnIntoVariable ( ',' ReturnIntoVariable )*;
+
+InsertStatement : SingleTableInsert 
+                | MultiTableInsert;
+
+Values : ValuesClause ReturningClause?;
+
+SingleInsertSource : Values 
+                   | Subquery;
+
+SingleTableInsert : "insert" Hint? InsertIntoClause SingleInsertSource ErrorLogingClause?;
+
+InsertInto : InsertIntoClause ValuesClause? ErrorLogingClause?;
+
+MultiIntoClause : "all" InsertInto+;
+
+MultiTableInsert : "insert" Hint? ( MultiIntoClause | ConditionalInsertClause ) Subquery;
+
+InsertIntoValuesClause : InsertIntoClause ValuesClause?;
+
+InsertIntoValuesClauseList : InsertIntoValuesClause+;
+
+ConditionalInsertWhen : "when" SqlCondition "then" InsertIntoValuesClauseList;
+
+ConditionalInsertElse : "else" InsertIntoValuesClauseList;
+
+ConditionalInsertWhenList : ConditionalInsertWhen+;
+
+ConditionalInsertClause : ( "all" | "first" )? ConditionalInsertWhenList ConditionalInsertElse?;
+
+InsertIntoClause : "into" DmlTableExpressionClause SqlIdentifier? ColumnsList?;
+
+ValueClauseData : "default" 
+                | SqlExpression;
+
+ValuesClauseList : '(' ValueClauseData ( ',' ValueClauseData )* ')';
+
+ValuesClause : "values" ( ValuesClauseList | SqlObjectIdentifier );
+
+IntoTable : "into" TableName;
+
+RejectLimit : "reject" "limit" ( "unlimited" | IntegerLiteral );
+
+ErrorLogingClause : "log" "errors" IntoTable? ( '(' SqlSimpleExpression ')' )? RejectLimit?;
+
+DeleteStatement : "delete" Hint? "from"? 
+                  ( OnlyDmlTableExpresionClause | DmlTableExpressionClause ) 
+				  SqlIdentifier? 
+				  WhereClause? 
+				  ReturningClause? 
+				  ErrorLogingClause?;
+
+UnsignedNumber : IntegerPattern ( '.' IntegerPattern )?;
+
+Sign : '+' | '-';
+
+@SkipNode
+NumberLiteral : NumberPattern OptionalSpacing;
+
+Exponent : "e" Sign? IntegerPattern "d"?;
+
+@Rule(NumberLiteral)
+@Atomic
+NumberPattern : Sign? UnsignedNumber Exponent?;
+
+@SkipNode
+IntegerLiteral : IntegerPattern OptionalSpacing;
+
+@Rule(IntegerLiteral)
+@Atomic
+IntegerPattern : [0-9]+;
+
+Size : '(' NumberLiteral ')';
+
+CharSetDefinition : ( "character" "set" SqlObjectIdentifier CharSetAttr )?;
+
+CharSetAttr : ( '%' "charset" )?;
+
+CharSize : ( '(' NumberLiteral ( "byte" | "char" )? ')' )?;
+
+VarChar2 : "varchar2" CharSize CharSetDefinition;
+
+VarChar : "varchar" CharSize CharSetDefinition;
+
+Char : "char" "varying"? CharSize CharSetDefinition;
+
+Precision : NumberLiteral;
+
+NumberSize : ( '(' Precision ( ',' NumberLiteral )? ')' )?;
+
+Number : "number" NumberSize;
+
+Float : "float" Size?;
+
+Timestamp : "timestamp" Size? ( "with" "local"? "time" "zone" )? "TimeZone";
+
+IntervalDayToSecondSpec : '\'' 
+                          ( ( IntegerPattern TimeExpression ) 
+						        | TimeExpression 
+						        | IntegerPattern ) 
+						        '\'';
+
+IntervalDayToSecondLeadingPrecision : '(' IntegerPattern ( "," IntegerPattern )? ')';
+
+IntervalDayToSecondLiteral : "interval" 
+                             IntervalDayToSecondSpec 
+							        ( "day" | "hour" | "minute" | "seconds" ) 
+							        IntervalDayToSecondLeadingPrecision 
+							        ( "to" ( "day" | "hour" | "minute" | ( "second" IntegerPattern? ) ) )?;
+
+IntervalDayToSecond : "interval" "day" Size? "to" "second" Size?;
+
+IntervalYearToMonthLeadingTrailing : '\'' IntegerPattern ( "-" IntegerPattern )? '\'';
+
+IntervalYearToMonthLiteral : ( "interval" IntervalYearToMonthLeadingTrailing "year" Size? ( "to" "month" )? ) 
+                           | ( "interval" IntervalYearToMonthLeadingTrailing "month" Size? ( "to" "year" )? );
+
+IntervalYearToMonth : "interval" "year" Size? "to" "month";
+
+Time : "time" Size? ( "with" "local"? "time" "zone" )? "TimeZone";
+
+RefXml : "ref" "xmltype";
+
+NChar : "nchar" "varying"? Size?;
+
+NVarChar2 : "nvarchar2" Size?;
+
+LongRaw : "long" "raw"? Size?;
+
+Raw : "raw" Size?;
+
+CLob : "clob" CharSetDefinition;
+
+URowId : "urowid" Size?;
+
+BinaryFloat : "binary_float";
+
+BinaryDouble : "binary_double";
+
+Date : "date";
+
+BLob : "blob";
+
+NCLob : "nclob";
+
+BFile : "bfile";
+
+RowId : "rowid";
+
+@SkipNode
+SqlDataType : BinaryFloat 
+            | BinaryDouble
+            | Date 
+            | Number 
+            | IntervalDayToSecond 
+            | IntervalYearToMonth 
+            | Time 
+            | Timestamp 
+            | RefXml 
+            | Float 
+            | Char
+            | NChar 
+            | NVarChar2 
+            | VarChar2 
+            | VarChar 
+            | LongRaw 
+            | Raw 
+            | BLob 
+            | CLob 
+            | NCLob 
+            | BFile
+            | RowId 
+            | URowId;
+
+@Rule(Parameters)
+SqlParameters : '(' ( SqlFunctionParameter ( ',' SqlFunctionParameter )* )? ')';
+
+@Rule(QualifiedIdentifierRemote)
+SqlQualifiedIdentifierRemote : SqlQualifiedIdentifier DBLink SqlParameters* SqlAttributes?;
+
+@Rule(IdentifierRemote)
+SqlSimpleIdentifierRemote : SqlSimpleIdentifier DBLink SqlParameters* SqlAttributes?;
+
+SqlAttributes : ( '.' SqlAnySimpleIdentifier )+;
+
+@Rule(QualifiedIdentifier)
+SqlQualifiedIdentifier : SqlSimpleIdentifier SqlAttributes;
+
+@SkipNode
+SqlAnySimpleIdentifier : SqlAnyParameterizedIdentifier 
+                       | SqlAnyIdentifier;
+
+@Rule(ParameterizedIdentifier)
+SqlAnyParameterizedIdentifier : SqlAnyIdentifier SqlParameters+;
+
+@SkipNode
+SqlSimpleIdentifier : SqlParameterizedIdentifier
+                    | SqlIdentifier;
+
+@Rule(ParameterizedIdentifier)
+SqlParameterizedIdentifier : SqlIdentifier SqlParameters+;
+
+@SkipNode
+SqlObjectIdentifier : BuiltInFunctionCall 
+                    | SqlQualifiedIdentifierRemote 
+                    | SqlSimpleIdentifierRemote 
+                    | SqlQualifiedIdentifier 
+                    | SqlSimpleIdentifier;
+
+@SkipNode
+SqlIdentifier : SqlKeyword! SqlIdentifierPattern OptionalSpacing;
+
+@Rule(Identifier)
+@Atomic
+SqlIdentifierPattern : ( [a-z] | [A-Z] | [0-9] 
+                       | '_' | '$' | '#' 
+                       | '\u00C1'| '\u00C1' | '\u00C2' | '\u00C3' | '\u00C4' | '\u00C7' | '\u00C8' | '\u00C9' | '\u00CA' 
+                       | '\u00CB' | '\u00CC' | '\u00CD' | '\u00CE' | '\u00CF'
+                       | '\u00D2' | '\u00D3' | '\u00D4' | '\u00D5' | '\u00D6' | '\u00D9' | '\u00DA' | '\u00DB' | '\u00DC' 
+                       | '\u00E0' | '\u00E1' | '\u00E2' | '\u00E3' | '\u00E4' | '\u00E7' | '\u00E8' | '\u00E9' 
+                       | '\u00EA' | '\u00EB' | '\u00EC' | '\u00ED' | '\u00EE' | '\u00EF'
+                       | '\u00F2' | '\u00F3' | '\u00F4' | '\u00F5' | '\u00F6' | '\u00F9' | '\u00FA' | '\u00FB' | '\u00FC'  )+
+                     | ( '"' ( ( '\r' | '\n' | '"' )! . )+ '"' );
+
+@SkipNode
+SqlAnyIdentifier : SqlAnyIdentifierPattern OptionalSpacing;
+
+@Rule(SqlIdentifier)
+@Atomic
+SqlAnyIdentifierPattern : ( [a-z] | [A-Z] | [0-9] 
+                          | '_' | '$' | '#' 
+                          | '\u00C1'| '\u00C1' | '\u00C2' | '\u00C3' | '\u00C4' | '\u00C7' | '\u00C8' | '\u00C9' | '\u00CA' 
+                          | '\u00CB' | '\u00CC' | '\u00CD' | '\u00CE' | '\u00CF'
+                          | '\u00D2' | '\u00D3' | '\u00D4' | '\u00D5' | '\u00D6' | '\u00D9' | '\u00DA' | '\u00DB' | '\u00DC' 
+                          | '\u00E0' | '\u00E1' | '\u00E2' | '\u00E3' | '\u00E4' | '\u00E7' | '\u00E8' | '\u00E9' 
+                          | '\u00EA' | '\u00EB' | '\u00EC' | '\u00ED' | '\u00EE' | '\u00EF'
+                          | '\u00F2' | '\u00F3' | '\u00F4' | '\u00F5' | '\u00F6' | '\u00F9' | '\u00FA' | '\u00FB' | '\u00FC' )+
+                        | ( '"' ( ( '\r' | '\n'| '"' )! . )+ '"' );
+
+@FollowLiterals([A-Za-z_$#]+)
+@SyntaxOnly
+TestNoAlpha : ([a-z] | [A-Z] | [0-9] | '_' | '$' | '#')!;
+
+@FollowLiterals
+@SyntaxOnly
+OptionalSpacing : ( Spaces
+                  | BlockComment 
+				      | LineComment )*;
+
+@Fragment
+SqlKeyword : ( "access" | "add" | "all" | "alter" | "and" | "any" | "as" | "asc" | "audit" 
+             | "between" | "bulk" | "by" 
+		       | "case" | "char" | "check" | "cluster" | "collect" | "column" | "comment" | "compress" | "connect" | "create" | "current" 
+		       | "date" | "decimal" | "default" | "delete" | "desc" | "distinct" | "drop" | "else" | "exclusive" | "exists" 
+		       | "file" | "float" | "for" | "from" 
+		       | "grant" | "group" 
+		       | "having" 
+		       | "identified" | "immediate" | "in" | "increment" | "index" | "initialvinsert" | "integer" | "intersect" | "into" | "is" 
+		       | "level" | "like" | "lock" | "long" 
+		       | "maxextents" | "minus" | "mlslabel" | "mode" | "modify" 
+		       | "noaudit" | "nocompress" | "not" | "nowait" | "null" | "number" 
+		       | "of" | "offline" | "on" | "online" | "option" | "or" | "order" 
+		       | "pctfree" | "prior" | "privileges" | "public" 
+		       | "raw" | "rename" | "resource" | "revoke" | "row" | "rowid" | "rownum" | "rows" 
+		       | "select" | "session" | "set" | "share" | "size" | "smallint" | "start" | "successful" | "synonym" | "sysdate" 
+		       | "table" | "then" | "to" | "trigger" 
+		       | "uid" | "union" | "unique" | "update" | "user" | "using" 
+		       | "validate" | "values" | "varchar" | "varchar2" | "view" 
+		       | "whenever" | "when" | "where" | "with" ) TestNoAlpha;
+						
+@SkipNode
+SqlObjectIdentifierList : SqlObjectIdentifier ( ',' SqlObjectIdentifier )*;
+
+SqlIdentifierList : SqlIdentifier ( ',' SqlIdentifier )*;
+
+@Atomic
+Spaces : ( ' ' 
+         | '\r'
+         | '\n'
+         | '\t'
+	      | '\f' )+;
+
+@Atomic
+BlockComment : '/*' ('*/'! .)* '*/';
+
+@Atomic
+LineComment : '--' ('\n'! .)* ( '\n' | '\r\n' | EOI );

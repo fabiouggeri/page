@@ -1,0 +1,1230 @@
+grammar HarbourUnprocessed;
+
+/*********************************************************************************
+                              RULES
+**********************************************************************************/
+
+HarbourProgram : Statements EOI;
+
+@SkipNode
+Statements : ( OptionalSpacing
+               ( AloneLineComment EndStmt
+			   | Statement EndStmt
+			   | IgnoreLineStatement EndStmt
+			   | EndStmt ) 
+			 )*
+             OptionalSpacing (AloneLineComment | Statement | IgnoreLineStatement)?;
+
+@Memoize
+Statement : LocalVariablesDeclaration
+          | FunctionDeclaration
+          | ProcedureDeclaration
+          | MethodDefinition
+          | StaticVariablesDeclaration
+          | FieldsDeclaration
+          | CreateClass
+          | ClassBodyStmt
+          | EndClass
+          | ClassDeclaration
+          | OldStyleParametersDeclaration
+          | DeclareStatement
+          | IfInLine
+          | IfBegin
+          | ElseIfBegin
+          | ElseBegin
+          | IfEnd
+          | DoWhileBegin
+          | DoWhileEnd
+          | ForNextBegin
+          | ForNextEnd
+          | BeginSequenceBegin
+          | RecoverBegin
+          | AlwaysBegin
+          | BeginSequenceEnd
+          | DoCaseBegin
+          | DoCaseOptionBegin
+          | OtherwiseBegin
+          | DoCaseEnd
+          | ForEachBegin
+          | SwitchBegin
+          | SwitchOptionBegin
+          | DefaultCmd
+          | SwitchDefaultBegin
+          | SwitchEnd
+          | TryCatchBegin
+          | CatchBlockBegin
+          | FinallyBlockBegin
+          | TryCatchEnd
+          | BeginProducer
+          | EndProducer
+          | EndKeyword
+          | Return
+          | Break
+          | ClassMemberDeclaration
+          | MemvarDeclaration
+          | ExitStmt
+          | LoopStmt
+          | PublicVariableDeclaration
+          | PrivateVariableDeclaration
+          | External
+          | Announce
+          | Request
+          | Throw
+          | StatementAssignmentExpression
+          | SelfExpression
+          | PrefixedExpression
+          | PostfixedExpression
+          | AliasedExpression
+          | AliasedMacro
+          | QualifiedExpression
+          | BeginTransaction
+          | CommitTransaction
+          | RollbackTransaction
+          | UseAs
+          | UseArea
+          | MacroFunctionCall
+          | KeywordsFunctionCall
+          | SimpleFunctionCall
+          | KeyboardCall
+          | Macro
+          | ParenthesesStatement
+          | Dump
+          | Directive
+          | ArrobaGetSay
+          | SetCmd
+          | ReadCmd
+          | ClearCmd
+          | ClsCmd
+          | KeyboardCmd
+          | WaitCmd
+          | AcceptCmd
+          | InputCmd
+          | ReleaseCmd
+          | RestoreCmd
+          | StoreCmd
+          | SaveCmd
+          | JoinCmd
+          | EjectCmd
+          | EraseCmd
+          | DeleteCmd
+          | RenameCmd
+          | CopyCmd
+          | DirCmd
+          | TypeCmd
+          | RequestCmd
+          | CancelCmd
+          | QuitCmd
+          | RunCmd
+          | OutCmd
+          | CloseCmd
+          | SelectCmd
+          | AppendCmd
+          | PackCmd
+          | ZapCmd
+          | UnlockCmd
+          | CommitCmd
+          | GotoCmd
+          | SkipCmd
+          | FindCmd
+          | ContinueCmd
+          | SeekCmd
+          | LocateCmd
+          | ReplaceCmd
+          | RecallCmd
+          | CreateCmd
+          | SortCmd
+          | TotalCmd
+          | UpdateCmd
+          | CountCmd
+          | SumCmd
+          | AverageCmd
+          | ListCmd
+          | DisplayCmd
+          | ReportCmd
+          | LabelCmd
+          | IndexOnCmd
+          | ReindexCmd
+          | QOutCommand
+          | MenuToCmd
+          | UnknownCommand;
+
+@Rule(Statement)		  
+IgnoreLineStatement : IgnoreLine;		  
+
+@Memoize
+UnknownCommand : (AnySimpleFunctionCall | Expression | UnknownIdentifier | Separator)+;
+
+LocalVariablesDeclaration : "local":4 VariableDeclarationList;
+
+FunctionDeclaration : FunctionModifier "function":4 Identifier ParParametersDeclaration?;
+
+ProcedureDeclaration : FunctionModifier "procedure":4 Identifier ParParametersDeclaration?;
+
+MethodDefinition : ( "method" | "classmethod" | "constructor" )
+                   ( "procedure" | "function" )?
+                   AnyIdentifier
+                   ParParametersDeclaration
+                   ClassOwner?;
+
+ClassOwner : "class" AnyIdentifier;
+
+CreateClass : "create"? "class" AnyIdentifier ("from" IdentifierList)?;
+
+@SyntaxOnly
+EndClass : "endclass";
+
+ClassBodyStmt : SectionScope
+              | MethodMember
+              | FieldMember;
+
+SectionScope : MemberScope ':';
+
+MemberScope : "hidden"
+            | "export"
+            | "exported"
+            | "visible"
+            | "public"
+            | "private"
+            | "protected"
+            | "published";
+
+MemberScopes : MemberScope*;
+
+MethodMember : ("method" | "classmethod" | "constructor" | "procedure" | "assign")
+               AnyIdentifier
+               ParParametersDeclaration
+               "constructor"?
+               AsType
+               MemberScopes
+               InLineExpression;
+
+FieldMember : ("data" | "var" | "classvar" | "access")
+              AnyIdentifier
+              AsType
+              InitFieldMember
+              IsInObject?
+              MemberScopes
+              InLineExpression;
+
+InLineExpression : ("inline" ExpressionList)?;
+
+InitFieldMember : ("init" Expression)?;
+
+IsInObject : "is" AnyIdentifier "in" AnyIdentifier;
+
+@Memoize
+@SkipNode
+Variable : VariablePattern OptionalSpacing;
+
+// @Atomic
+@Rule(Variable)
+VariablePattern : IdentifierPattern ('(' | '->')!;
+
+StaticVariablesDeclaration : "static":4 VariableDeclarationList;
+
+FieldsDeclaration : "field":4 IdentifierList InTable?;
+
+ClassDeclaration : "_HB_CLASS" AnyIdentifier;
+
+OldStyleParametersDeclaration : "parameters":4 ParametersDeclarationList;
+
+DeclareStatement : "declare":4 IgnoreRestOfLine;
+
+ExitStmt : "exit";
+
+LoopStmt : "loop";
+
+@SkipNode
+Directive : IncludeDirective
+          | DefineDirective
+          | TranslateDirective
+          | XTranslateDirective
+          | XCommandDirective
+          | YTranslateDirective
+          | YCommandDirective
+          | CommandDirective
+          | IfDefDirective
+          | IfDirective
+          | IfNDefDirective
+          | ElseDirective
+          | EndIfDirective
+          | PragmaDirective
+          | UndefDirective
+          | UntranslateDirective
+          | XUntranslateDirective
+          | YUntranslateDirective
+          | UncommandDirective
+          | XUncommandDirective
+          | YUncommandDirective
+          | StdoutDirective
+          | ErrorDirective
+          | LineDirective;
+
+LineDirective : '#' "line" NumberLiteral StringLiteral;
+
+IncludeDirective : '#' "include" StringLiteral;
+
+DefineDirective : '#' "define"  AnyIdentifier ParParametersDeclaration? AnyToken*;
+
+TranslateDirective : '#' "translate" AnyToken*;
+
+XTranslateDirective : '#' "xtranslate" AnyToken*;
+
+YTranslateDirective : '#' "ytranslate" AnyToken*;
+
+UntranslateDirective : '#' "untranslate" AnyToken*;
+
+XUntranslateDirective : '#' "xuntranslate" AnyToken*;
+
+YUntranslateDirective : '#' "yuntranslate" AnyToken*;
+
+CommandDirective : '#' "command" AnyToken*;
+
+XCommandDirective : '#' "xcommand" AnyToken*;
+
+YCommandDirective : '#' "ycommand" AnyToken*;
+
+UncommandDirective : '#' "uncommand" AnyToken*;
+
+XUncommandDirective : '#' "xuncommand" AnyToken*;
+
+YUncommandDirective : '#' "yuncommand" AnyToken*;
+
+IfDefDirective : '#' "ifdef" AnyToken*;
+
+IfDirective : '#' "if" AnyToken*;
+
+IfNDefDirective : '#' "ifndef" AnyToken*;
+
+ElseDirective : '#' "else";
+
+EndIfDirective : '#' "endif" IgnoreRestOfLine;
+
+PragmaDirective : '#' "pragma" AnyToken*;
+
+UndefDirective : '#' "undef" AnyToken*;
+
+StdoutDirective : '#' "stdout" AnyToken*;
+
+ErrorDirective : '#' "error" AnyToken*;
+
+@SkipNode
+AnyToken : AnyIdentifier
+         | Spacing
+         | Separator
+         | StringLiteral
+         | LogicalLiteral
+         | NumberLiteral
+         | TimeLiteral
+         | DateTimeLiteral
+         | ';'
+         | BlockComment
+         | LineComment;
+
+Separator : ','
+          | '['
+          | ']'
+          | '('
+          | ')'
+          | '='
+          | '>'
+          | '<'
+          | ':'
+          | '.'
+          | '@'
+          | '|'
+          | '+'
+          | '-'
+          | '*'
+          | '/'
+          | '%'
+          | '^'
+          | '~'
+          | '&'
+          | '!'
+          | '$'
+          | '\\'
+          | '{'
+          | '}'
+          | '?'
+          | '#';
+
+@SkipNode
+@Memoize
+CmdComplementation : (AnySimpleFunctionCall | Expression | UnknownIdentifier | Separator)*;
+
+@Memoize
+@SkipNode
+UnknownIdentifier : UnknownIdentifierPattern OptionalSpacing;
+
+@Rule(UnknownIdentifier)
+UnknownIdentifierPattern : IdentifierPattern ('(' | '->')!;
+
+BeginProducer : "begin" "producer" ("transaction" IntegerNumber)? ("wait" | "nowait")*;
+
+EndProducer : "end" "producer";
+
+BeginTransaction : "begin" "transaction";
+
+CommitTransaction : "commit" "transaction";
+
+RollbackTransaction : "rollback" "transaction";
+
+UseAs : UseAsDatabase
+        UseAsCommand
+        UseAsParams
+        UseAlias
+        UseAsOptions;
+
+UseAsDatabase : "use" (AliasIdentifier | Expression);
+
+UseAsCommand : "as" UseAsType Expression;
+
+UseAsType : ("fun" | "proc")?;
+
+UseAsParams : ("with" Expression)?;
+
+UseAlias : ("alias" (AliasIdentifier | Expression))?;
+
+UseAsPrecision : "precision" Expression;
+
+UseAsOptions : ( "new"
+               | "shared"
+               | "exclusive"
+               | "readonly"
+               | UseAsPrecision
+               | "scrollable"
+               | "permanent"
+               | "overwrite"
+               | "c1logical")*;
+
+UseArea : UseDatabase
+          UseAreaVia
+          UseAlias
+          UseOptions
+          UseIndexes;
+
+UseDatabase : "use" (AliasIdentifier | Expression)?;
+
+UseAreaVia : ("via" Expression)?;
+
+UseCodepage : "codepage" Expression;
+
+UseOptions : ( "new"
+             | "exclusive"
+             | "shared"
+             | "readonly"
+             | UseCodepage)*;
+
+UseIndexes : ("index" Expression (',' Expression)*)?;
+
+ArrobaGetSay : '@' CmdComplementation;
+
+SetCmd : "set" CmdComplementation;
+
+ReadCmd : "read" CmdComplementation;
+
+ClsCmd : "cls" CmdComplementation;
+
+ClearCmd : "clear" CmdComplementation;
+
+KeyboardCmd : "keyboard":4 CmdComplementation;
+
+WaitCmd : "wait" CmdComplementation;
+
+AcceptCmd : "accept":4 CmdComplementation;
+
+InputCmd : "input" CmdComplementation;
+
+ReleaseCmd : "release":4 CmdComplementation;
+
+RestoreCmd : "restore":4 CmdComplementation;
+
+StoreCmd : "store":4 Expression "to" VariableList;
+
+SaveCmd : "save" CmdComplementation;
+
+JoinCmd : "join" CmdComplementation;
+
+EjectCmd : "eject":4;
+
+EraseCmd : "erase" CmdComplementation;
+
+DeleteCmd : "delete":4 CmdComplementation;
+
+RenameCmd : "rename":4 CmdComplementation;
+
+CopyCmd : "copy" CmdComplementation;
+
+DirCmd : "dir" CmdComplementation;
+
+TypeCmd : "type" CmdComplementation;
+
+RequestCmd : "request":4 CmdComplementation;
+
+CancelCmd : "cancel":4;
+
+QuitCmd : "quit";
+
+RunCmd : ("run" | "exclamation") CmdComplementation;
+
+OutCmd : "question":4 CmdComplementation;
+
+CloseCmd : "close" CmdComplementation;
+
+SelectCmd : "select":4 CmdComplementation;
+
+AppendCmd : "append":4 CmdComplementation;
+
+PackCmd : "pack";
+
+ZapCmd : "zap";
+
+UnlockCmd : "unlock":4 CmdComplementation;
+
+CommitCmd : "commit";
+
+GotoCmd : ("goto" | "go") CmdComplementation;
+
+SkipCmd : "skip" CmdComplementation;
+
+FindCmd : "find" CmdComplementation;
+
+ContinueCmd : "continue":4;
+
+SeekCmd : "seek" CmdComplementation;
+
+LocateCmd : "locate":4 CmdComplementation;
+
+ReplaceCmd : "replace":4 CmdComplementation;
+
+RecallCmd : "recall":4 CmdComplementation;
+
+CreateCmd : "create":4 CmdComplementation;
+
+SortCmd : "sort" CmdComplementation;
+
+TotalCmd : "total" CmdComplementation;
+
+UpdateCmd : "update":4 CmdComplementation;
+
+CountCmd : "count" CmdComplementation;
+
+SumCmd : "sum" CmdComplementation;
+
+AverageCmd : "average":4 CmdComplementation;
+
+ListCmd : "list" CmdComplementation;
+
+DisplayCmd : "display":4 CmdComplementation;
+
+ReportCmd : "report":4 CmdComplementation;
+
+LabelCmd : "label":4 CmdComplementation;
+
+IndexOnCmd : "index":4 "on" CmdComplementation;
+
+ReindexCmd : "reindex":4 CmdComplementation;
+
+QOutCommand : ('?' | '??') CmdComplementation;
+
+MenuToCmd : "menu" "to" LeftValue;
+
+DefaultCmd : "default":4 LeftValue "to" Expression;
+
+@SkipNode
+@Memoize
+MacroSubstition : MacroSubstitionPattern OptionalSpacing;
+
+@Rule(MacroSubstition)
+@Atomic
+MacroSubstitionPattern : ([A-Z] | '_') ([A-Z] | [0-9] | '_')*;
+
+@Memoize
+IgnoreLine : (('\n' | '\r' | EOI | ';')! .)+;
+
+@SkipNode
+VariableDeclarationList : VariableDefinition VariableDefinitionCommaList;
+
+@SkipNode
+ParametersDeclarationList : ParameterDeclaration (',' ParameterDeclaration)*;
+
+@SkipNode
+CommaVariableDefinition : ',' VariableDefinition;
+
+VariableDefinition : AnyIdentifier OptionalArrayDimension AsType InitializeVariable;
+
+@SkipNode
+VariableDefinitionCommaList : CommaVariableDefinition*;
+
+@SkipNode
+AssignmentOperator : AssignmentOperatorOnly OptionalSpacing;
+
+@Atomic
+@Rule(AssignmentOperator)
+AssignmentOperatorOnly : ':=' | EqualOperator;
+
+@Fragment
+EqualOperator : '=' ('>' | '=')!;
+
+InitializeVariable : (AssignmentOperator ExpressionAsType)?;
+
+ExpressionAsType : Expression AsType;
+
+AsType : AsDataType?;
+
+@SkipNode
+OptionalArrayDimension : ArrayDimension?;
+
+ArrayDimension : '[' ValuesList ']' ('[' ValuesList ']')*;
+
+@SkipNode
+ValuesList : Expression? (',' Expression?)*;
+
+InTable : "in" AnyIdentifier;
+
+VariableList : Variable (',' Variable)*;
+
+IdentifierList : AnyIdentifier (',' AnyIdentifier)*;
+
+MemvarDeclaration : "memvar":4 IdentifierList;
+
+AliasIdentifier : ParenthesesExpressionList | Macro | AnyIdentifier;
+
+ExpressionList : Expression? (',' Expression?)*;
+
+Macro : MacroVar | MacroExpression;
+
+AliasedExpression : AliasIdentifier '->' ParenthesesExpressionList;
+
+@SkipNode
+ParenthesesExpressionList : '(' ExpressionList ')';
+
+ParenthesesStatement : '(' ExpressionList ')';
+
+QualifiedVariable : Variable (':' AnyIdentifier)+;
+
+MacroFunctionCall : Macro ParParameters;
+
+ParParameters : '(' ('...' | OptionalParametersList) ')';
+
+SimpleFunctionCall : Identifier ParParameters;
+
+@Rule(SimpleFunctionCall)
+AnySimpleFunctionCall : AnyIdentifier ParParameters;
+
+@SyntaxOnly
+IgnoreRestOfLine : TestNoAlpha ((('\n' | '\r' | EOI)! .)* )?;
+
+IfInLine : IIFKeyword '(' Condition ',' Expression? ',' Expression? ')';
+
+IfBegin : "if" Condition;
+
+Condition : Expression;
+
+@NotExtendLiterals
+IfEnd : "endif":4 IgnoreRestOfLine;
+
+@NotExtendLiterals
+@Memoize
+EndKeyword : "end" IgnoreRestOfLine;
+
+DoWhileBegin : "do"? "while":4 Condition;
+
+DoWhileEnd : ("end" "do" | "enddo":4) IgnoreRestOfLine;
+
+ForNextBegin : "for" ForIndexInitialization "to" Expression Step;
+
+@NotExtendLiterals
+ForNextEnd : ( "end" "for"
+             | "next"
+             | "endfor":4 ) IgnoreRestOfLine;
+
+BeginSequenceBegin : BeginSequenceKeyword WithCodeBlock;
+
+DoCaseBegin : "do" "case";
+
+DoCaseEnd : ("end" "case" | "endcase":4) IgnoreRestOfLine;
+
+ForEachBegin : "for" "each" Variable "in" Expression;
+
+SwitchBegin : "switch":4 Expression;
+
+SwitchEnd : "end" "switch" IgnoreRestOfLine;
+
+TryCatchBegin : "try";
+
+TryCatchEnd : "end" "try" IgnoreRestOfLine;
+
+FinallyBlockBegin : "finally";
+
+Return : "return":4 ExpressionAsType?;
+
+Break : "break":4 Expression?;
+
+ClassMemberDeclaration : '_HB_MEMBER' (MethodDeclaration | AttributeListDeclaration);
+
+PublicVariableDeclaration : "public":4 VariableDeclarationList;
+
+PrivateVariableDeclaration : "private":4 VariableDeclarationList;
+
+External : "external":4 IdentifierList;
+
+Announce : "announce":4 Identifier;
+
+Request : "request":4 IdentifierList;
+
+Throw : "throw" '(' Expression ')';
+
+StatementAssignmentExpression : LeftValue AssignOperator (ValueByReference | Expression);
+
+SelfExpression : '::' PrimaryExpression;
+
+AliasedMacro : AliasIdentifier '->' Macro;
+
+QualifiedExpression : AtomicExpression (':' MemberCall)+;
+
+MemberCall : ArrayAccess
+           | MacroFunctionCall
+           | AnySimpleFunctionCall
+           | Variable;
+
+@SkipNode
+KeywordsFunctionCall : ( "begin"
+                       | "break":4
+                       | "class":4
+                       | "command":4
+                       | "else"
+                       | "field":4
+                       | "declare":4
+                       | "default"
+                       | "define":4
+                       | "do"
+                       | "each"
+                       | "exit"
+                       | "external":4
+                       | "function":4
+                       | "init"
+                       | "loop"
+                       | "otherwise":4
+                       | "procedure":4
+                       | "public":4
+                       | "recover":4
+                       | "sequence":4
+                       | "step"
+                       | "to"
+                       | "translate":4
+                       | "xtranslate":4
+                       | "xcommand":4 ) ParParameters;
+
+MethodDeclaration : Identifier ParParametersDeclaration;
+
+@SkipNode
+ParParametersDeclaration : '(' ParametersDeclaration ')';
+
+AttributeListDeclaration : '{' IdentifierList '}';
+
+@Atomic
+MacroPrefix : (Letter | Digit | '_')*;
+
+@Fragment
+Letter : [a-z] | [A-Z];
+
+@Fragment
+Digit : [0-9];
+
+@Atomic
+MacroSufix : '.' (Letter | Digit | '_')*;
+
+MacroVar : MacroPrefix '&' MacroVarName MacroSufix? OptionalSpacing;
+
+@Rule(Variable)
+@Memoize
+MacroVarName : IdentifierPattern;
+
+MacroExpression : '&' ParenthesesExpressionList;
+
+FunctionReference : AnyIdentifier '(' ')';
+
+ValueByReference : '@' (FunctionReference | AliasedField | QualifiedVariable | Variable);
+
+AliasedField : AliasIdentifier '->' AnyIdentifier;
+
+Parameter : ValueByReference | Expression | ')'& | ','&;
+
+@SkipNode
+CommaParameter : ',' Parameter;
+
+@SkipNode
+ParameterCommaList : CommaParameter*;
+
+@SkipNode
+ParametersList : Parameter ParameterCommaList;
+
+@SkipNode
+OptionalParametersList : ParametersList?;
+
+@Fragment
+IIFKeyword : "iif" | "if";
+
+ElseIfBegin : "elseif":5 Condition;
+
+ElseBegin : "else";
+
+OtherwiseBegin : "otherwise":4;
+
+DoCaseOptionBegin : "case" Condition;
+
+@SkipNode
+StepArgument : "step" Expression;
+
+Step : StepArgument?;
+
+@Rule(AssignmentExpression)
+ForIndexInitialization : (AliasedField | Macro | QualifiedVariable | Variable) AssignmentOperator Expression;
+
+BeginSequenceKeyword : "begin":4 "sequence":4;
+
+@SkipNode
+WithOption : "with" CodeBlockLiteral;
+
+@SkipNode
+CodeBlockLiteral : CodeBlockPattern OptionalSpacing;
+
+WithCodeBlock : WithOption?;
+
+BeginSequenceEnd : ("end" "sequence":4 | "endsequence":4) IgnoreRestOfLine;
+
+@SkipNode
+UsingSpec : "using":4 Variable;
+
+UsingIdentifier : UsingSpec?;
+
+RecoverBegin : "recover":4 UsingIdentifier;
+
+AlwaysBegin : "always":4;
+
+@SkipNode
+ParenthesesSwitchConstant : '(' SwitchConstant ')';
+
+@SkipNode
+SwitchConstant : ParenthesesSwitchConstant
+               | LogicalLiteral
+               | StringLiteral
+               | NumberLiteral;
+
+@SkipNode
+LogicalLiteral : LogicalPattern OptionalSpacing;
+
+@Rule(LogicalLiteral)
+LogicalPattern : ".T."
+               | ".F."
+               | ".Y."
+               | ".N.";
+
+SwitchOptionBegin : "case" SwitchConstant;
+
+SwitchDefaultBegin : "default";
+
+CatchBlockBegin : "catch" Variable?;
+
+CodeBlockParameters : VariableDeclarationList;
+
+@Rule(CodeBlockLiteral)
+CodeBlockPattern : '{' '|' CodeBlockParameters? '|' ExpressionList '}';
+
+@SkipNode
+ArrayLiteral : ArrayPattern OptionalSpacing;
+
+@Rule(ArrayLiteral)
+ArrayPattern : '{' ArrayItemList '}';
+
+@SkipNode
+ArrayItemList : ArrayItem? (',' ArrayItem?)*;
+
+@SkipNode
+ArrayItem : Expression
+          | ArrayByRef
+          | AliasedFieldByRef
+          | QualifiedVariableByRef
+          | VariableByRef;
+
+VariableByRef : '@' Variable;
+
+AliasedFieldByRef : '@' AliasedField;
+
+QualifiedVariableByRef : '@' QualifiedVariable;
+
+ArrayByRef : '@' ArrayAccess;
+
+HashItem : Expression '=>' Expression?;
+
+@SkipNode
+HashItemsList : HashItem (',' HashItem)*;
+
+@SkipNode
+HashItems : HashItemsList?;
+
+@SkipNode
+HashContent : '=>'
+            | HashItems;
+
+@SkipNode
+HashLiteral : HashPattern OptionalSpacing;
+
+@Rule(HashLiteral)
+HashPattern : '{' HashContent '}';
+
+NilValue : "nil";
+
+@SkipNode
+Literal : StringLiteral
+        | NumberLiteral
+        | LogicalLiteral
+        | ArrayLiteral
+        | CodeBlockLiteral
+        | HashLiteral
+        | NilValue
+        | DateTimeLiteral;
+
+@SkipNode
+DateTimeLiteral : DateTimePattern OptionalSpacing;
+
+@Atomic
+@Rule(DateTimeLiteral)
+DateTimePattern : ('0d' Digit Digit Digit Digit Digit Digit Digit Digit) | ("d" (('"' DatePattern ("T"? TimePattern)? '"') | ('\'' DatePattern ("T"? TimePattern)? '\'') | ('[' DatePattern ("T"? TimePattern)? ']'))) | ('{' '^' (IntegerNumber ('-' | '/') IntegerNumber ('-' | '/') IntegerNumber ','?)? TimePattern? OptionalSpacing '}');
+
+@SkipNode
+TimeLiteral : TimePattern OptionalSpacing;
+
+@Atomic
+IntegerNumber : Digit+;
+
+@Atomic
+@Rule(TimeLiteral)
+TimePattern : IntegerNumber (':' IntegerNumber (':' IntegerNumber)? ('.' IntegerNumber)?)? ("AM" | "PM")?;
+
+@Atomic
+DatePattern : IntegerNumber ('-' | '/' | '.') IntegerNumber ('-' | '/' | '.') IntegerNumber;
+
+@SyntaxOnly
+CommaOrCloseOpenBracket : ',' | (']' '[');
+
+@SkipNode
+CommaIndexItem : CommaOrCloseOpenBracket IndexItem;
+
+@SkipNode
+IndexItemCommaList : CommaIndexItem*;
+
+@SkipNode
+IndexList : IndexItem IndexItemCommaList;
+
+IndexItem : Expression;
+
+ArrayIndex : '[' IndexList ']';
+
+@SkipNode
+AssignOperator : AssignOperatorOnly OptionalSpacing;
+
+@Atomic
+@Rule(AssignOperator)
+AssignOperatorOnly : ':='
+                   | '+='
+                   | '-='
+                   | '*='
+                   | '/='
+                   | '%='
+                   | '^='
+                   | EqualOperator;
+
+@SkipNode
+@Memoize
+Expression : AssignmentExpression | OptionalOrExpression;
+
+@Memoize
+AssignmentExpression : LeftValue AssignOperator (ValueByReference | Expression);
+
+@SkipNode
+OptionalOrExpression : OrExpression | OptionalAndExpression;
+
+OrExpression : OptionalAndExpression ".or." OptionalOrExpression;
+
+@SkipNode
+OptionalAndExpression : AndExpression | OptionalRelationalExpression;
+
+AndExpression : OptionalRelationalExpression ".and." OptionalAndExpression;
+
+@SkipNode
+RelationalOperator : RelationalOperatorOnly OptionalSpacing;
+
+@Atomic
+@Rule(RelationalOperator)
+RelationalOperatorOnly : '>='
+                       | '<='
+                       | '<>'
+                       | '#'
+                       | '!='
+                       | '>'
+                       | '<'
+                       | '=='
+                       | '$'
+                       | "in"
+                       | EqualOperator;
+
+@SkipNode
+OptionalRelationalExpression : RelationalExpression | OptionalMathExpression;
+
+@Memoize
+RelationalExpression : PrimaryExpression RelationalOperator OptionalRelationalExpression;
+
+@SkipNode
+MathOperator : MathOperatorOnly OptionalSpacing;
+
+@Atomic
+@Rule(MathOperator)
+MathOperatorOnly : PlusSign
+                 | MinusSign
+                 | '**'
+                 | '*'
+                 | '/'
+                 | '%'
+                 | '^^'
+                 | '^'
+                 | '|'
+                 | '&'
+                 | '<<'
+                 | '>>';
+
+@SkipNode
+OptionalMathExpression : MathExpression | PrimaryExpression;
+
+@Memoize
+MathExpression : PrimaryExpression MathOperator OptionalRelationalExpression;
+
+@Memoize
+PrefixedExpression : PrefixOperator Expression;
+
+@Memoize
+PostfixedExpression : ( QualifiedExpression
+                      | AtomicExpression ) PostfixOperator+;
+
+@SkipNode
+@Memoize
+PrimaryExpression : PrefixedExpression
+                  | PostfixedExpression
+                  | QualifiedExpression
+                  | AtomicExpression;
+
+@Fragment
+PlusSign : '+' '+'!;
+
+@Fragment
+MinusSign : '-' '-'!;
+
+@SkipNode
+PrefixOperator : PrefixOperatorOnly OptionalSpacing;
+
+@Atomic
+@Rule(PrefixOperator)
+PrefixOperatorOnly : '++'
+                   | '--'
+                   | NotOperator
+                   | PlusSign
+                   | MinusSign;
+
+@SkipNode
+PostfixOperator : PostfixOperatorOnly OptionalSpacing;
+
+@Atomic
+@Rule(PostfixOperator)
+PostfixOperatorOnly : '++'
+                    | '--';
+
+@SkipNode
+@Memoize
+AtomicExpression : SelfExpression
+                 | ArrayAccess
+                 | AliasedExpression
+                 | AliasedField
+                 | AliasedMacro
+                 | Literal
+                 | IfInLine
+                 | MacroFunctionCall
+                 | AnySimpleFunctionCall
+                 | Macro
+                 | ParenthesesExpressionList
+                 | KeyboardCall
+                 | ClearTypehead
+                 | Variable;
+
+KeyboardCall : "keyboard" Expression;
+
+ClearTypehead : "clear" "typeahead";
+
+@Memoize
+ArrayAccess : ( ArrayLiteral
+              | HashLiteral
+              | StringLiteral
+              | AliasedExpression
+              | AliasedField
+              | AliasedMacro
+              | IfInLine
+              | MacroFunctionCall
+              | AnySimpleFunctionCall
+              | Macro
+              | Variable) ArrayIndex;
+
+@SkipNode
+@Memoize
+LeftValue : SelfExpression
+          | QualifiedExpression
+          | ArrayAccess
+          | AliasedField
+          | AliasedMacro
+          | Macro
+          | Variable
+          | ParenthesesLeftValue;
+
+@SkipNode
+ParenthesesLeftValue : '(' LeftValue ')';
+
+@Fragment
+NotOperator : ( ".not."
+              | ('!' '='!) );
+
+@NotExtendLiterals
+Dump : '#' Whitespace? "pragma" Whitespace "begindump" DumpBody EndDump;
+
+@Atomic
+DumpBody : (EndDump! .)*;
+
+EndDump : '#' "pragma" "enddump";
+
+ParameterDeclaration : Identifier AsType;
+
+ParametersDeclaration : ParametersDeclarationList | '...' | ')'&;
+
+@SkipNode
+FunctionModifiers : "static":4
+                  | "init"
+                  | "exit";
+
+FunctionModifier : FunctionModifiers?;
+
+@SkipNode
+StringLiteral : StringPattern OptionalSpacing;
+
+@Atomic
+@Rule(StringLiteral)
+StringPattern : ('"' (('\n' | '\"')! .)* '"')
+              | ('\'' (('\n' | '\'')! .)* '\'')
+              | ('[' (('\n' | ']')! .)* ']')
+              | ("e" '"' (('\\' '\n'! .) | (('\n' | '\"')! .))* '"');
+
+@SkipNode
+NumberLiteral : NumberPattern EndsNumber;
+
+@Fragment
+EndsNumber : ('?' | '&' | '_' | '~')* OptionalSpacing;
+
+@Atomic
+@Rule(NumberLiteral)
+NumberPattern : (IntegerNumber '.' IntegerNumber)
+              | (IntegerNumber '.' Letter!)
+              | IntegerNumber
+              | ('.' IntegerNumber);
+
+@SkipNode
+ArraySubType : "of" DataType;
+
+DataType : "character":4
+         | "numeric":4
+         | "date"
+         | "logical":4
+         | StringLiteral
+         | "object":4
+         | "codeblock":4
+         | "hash"
+         | Array
+         | Class;
+
+ArrayType : ArraySubType?;
+
+Array : "array":4 ArrayType;
+
+Class : "class":4 Identifier;
+
+@SkipNode
+AsDataType : "as" DataType;
+
+@SkipNode
+@Memoize
+@Rule(Identifier)
+AnyIdentifier : IdentifierPattern OptionalSpacing;
+
+@SkipNode
+@Memoize
+Identifier : Keyword! IdentifierPattern OptionalSpacing;
+
+@Rule(Identifier)
+@Atomic
+IdentifierPattern : ([A-Z] | [a-z] | '_') ([A-Z] | [a-z] | [0-9] | '_')*;
+
+@Atomic
+@SyntaxOnly
+Whitespace : (' ' | '\t' | '\f')+;
+
+@Atomic
+@SyntaxOnly
+LineComment : ('//' | '&&') (('\n' | '\r' | EOI)! .)*;
+
+@Atomic
+@SyntaxOnly
+BlockComment : '/*' ('*/'! .)* '*/';
+
+@Atomic
+@SyntaxOnly
+AloneLineComment : '*' (('\n' | '\r' | EOI)! .)*;
+
+@Atomic
+@SyntaxOnly
+EndStmt : '\n'
+        | '\r\n'
+        | ';';
+
+@SyntaxOnly
+@NotExtendLiterals
+@Memoize
+Spacing : ( Whitespace
+          | LineComment
+          | BlockComment
+          | ContinueNL )+;
+
+@NotExtendLiterals
+ContinueNL : ';' (Whitespace | LineComment | BlockComment)* NewLine;
+
+@Fragment
+NewLine : '\n'
+        | '\r\n';
+
+@FollowLiterals([A-Za-z_][A-Za-z0-9_]*)
+@Fragment
+TestNoAlpha : ([a-z] | [A-Z] | [0-9] | '_')!;
+
+@SyntaxOnly
+@FollowLiterals
+@Memoize
+@Rule(Spacing)
+@IgnoreEmpty
+OptionalSpacing : ( Whitespace
+                  | LineComment
+                  | BlockComment
+                  | ContinueNL )*;
+
+@Fragment
+Keyword : ("announce":4 | "begin":4    | "break":4    | "case"        | "catch":4       | "default":4     | "each"        | "else"       |
+           "elseif"     | "end"        | "endcase":4  | "enddo":4     | "endif":4       | "endsequence":4 | "exit"        | "extern":4   |
+           "field":4    | "for"        | "function":4 | "in"          | "if"            | "iif"           | "init"        | "local":4    |
+           "loop"       | "memvar":4   | "next"       | "nil"         | "otherwise":4   | "parameters":4  | "procedure":4 | "public":4   |
+           "recover":4  | "return":4   | "self"       | "sequence":4  | "static":4      | "switch":4      | "try"         | "using":4    |
+           "while":4) TestNoAlpha;

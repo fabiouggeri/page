@@ -1,0 +1,5 @@
+grammar OracleDynamicSql;
+
+import OraclePlSql;
+
+SqlCall : OptionalSpacing ( DmlSentence | PlSqlSource ) ';'? EOI;

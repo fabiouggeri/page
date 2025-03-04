@@ -1,0 +1,622 @@
+grammar Harbour;
+
+/*********************************************************************************
+                              RULES
+**********************************************************************************/
+
+HarbourProgram : Statements EOI;
+
+@SkipNode
+Statements : Statement*;
+
+@SkipNode
+Statement : ( LocalVariablesDeclaration 
+            | FunctionDeclaration 
+            | ProcedureDeclaration 
+            | StaticVariablesDeclaration 
+            | LineDirective 
+            | PragmaDump 
+            | FieldsDeclaration 
+            | ClassDeclaration 
+            | OldStyleParametersDeclaration 
+            | DeclareStatement 
+            | BodyStatement ) EndStmt;
+
+LocalVariablesDeclaration : "local":4 VariableDeclarationList;
+
+FunctionDeclaration : FunctionModifier? "function":4 Identifier ParParametersDeclaration?;
+
+ProcedureDeclaration : FunctionModifier? "procedure":4 Identifier ParParametersDeclaration?;
+
+StaticVariablesDeclaration : "static":4 VariableDeclarationList;
+
+LineDirective : '#' "line" NumberLiteral StringLiteral;
+
+PragmaDump : '#' "pragma" Dump;
+
+FieldsDeclaration : "field":4 IdentifierList InTable?;
+
+ClassDeclaration : '_HB_CLASS' AnyIdentifier;
+
+OldStyleParametersDeclaration : "parameters":4 ParametersDeclarationList;
+
+DeclareStatement : "declare":4 ('\n'! .)*;
+
+@SkipNode
+BodyStatement : OptionalSpacing 
+              | IfInLine 
+              | IfEndif 
+              | DoWhile 
+              | ForNext 
+              | BeginSequence 
+              | DoCase 
+              | ForEach 
+              | DoSwitch 
+              | TryCatch 
+              | Return 
+              | Break 
+              | ClassMemberDeclaration 
+              | MemvarDeclaration 
+              | "exit" 
+              | "loop" 
+              | PublicVariableDeclaration 
+              | PrivateVariableDeclaration 
+              | External 
+              | Announce 
+              | Request 
+              | Throw 
+              | StatementAssignmentExpression 
+              | SelfExpression 
+              | PrefixedExpression 
+              | PostfixedExpression 
+              | AliasedExpression 
+              | AliasedMacro 
+              | QualifiedExpression 
+              | MacroFunctionCall 
+              | KeywordsFunction 
+              | SimpleFunctionCall 
+              | Macro 
+              | ParenthesesExpressionList 
+              | AloneLineComment;
+
+@SkipNode
+VariableDeclarationList : VariableDefinition VariableDefinitionCommaList;
+
+@SkipNode
+ParametersDeclarationList : ParameterDeclaration (',' ParameterDeclaration)*;
+
+@SkipNode
+CommaVariableDefinition : ',' VariableDefinition;
+
+VariableDefinition : AnyIdentifier OptionalArrayDimension AsType InitializeVariable?;
+
+@SkipNode
+VariableDefinitionCommaList : CommaVariableDefinition*;
+
+AssignmentOperator : ':=' | EqualOperator;
+
+@SkipNode
+EqualOperator : '=' ('>' | '=')!;
+
+InitializeVariable : AssignmentOperator ExpressionAsType;
+
+ExpressionAsType : Expression AsType?;
+
+@SkipNode
+Expression : AssignmentExpression | ConditionalOrExpression;
+
+AsType : AsDataType?;
+
+@SkipNode
+OptionalArrayDimension : ArrayDimension?;
+
+ArrayDimension : '[' ValuesList ']' ('[' ValuesList ']')*;
+
+@SkipNode
+ValuesList : Expression? (',' Expression?)*;
+
+InTable : "in" AnyIdentifier;
+
+VariableList : AnyIdentifier (',' AnyIdentifier)*;
+
+IdentifierList : AnyIdentifier (',' AnyIdentifier)*;
+
+MemvarDeclaration : "memvar":4 IdentifierList;
+
+@SkipNode
+AliasIdentifier : ('(' ExpressionList ')') | Macro | AnyIdentifier;
+
+ExpressionList : Expression? (',' Expression?)*;
+
+Macro : MacroVar | MacroExpression;
+
+AliasedExpression : AliasIdentifier '->' ParenthesesExpressionList;
+
+@SkipNode
+ParenthesesExpressionList : '(' ExpressionList ')';
+
+QualifiedVariable : Identifier (':' AnyIdentifier)+;
+
+AnyQualifiedVariable : AnyIdentifier (':' AnyIdentifier)+;
+
+MacroFunctionCall : Macro ParParameters;
+
+ParParameters : '(' ('...' | OptionalParametersList) ')';
+
+SimpleFunctionCall : Identifier ParParameters;
+
+@Rule(SimpleFunctionCall)
+AnySimpleFunctionCall : AnyIdentifier ParParameters;
+
+IfInLine : IIFKeyword '(' Expression ',' Parameter? ',' Parameter? ')';
+
+IfEndif : "if" Expression Body ElseIfList Else "endif":3;
+
+DoWhile : DoWhileKeyword Expression Body "enddo":3;
+
+ForNext : "for" ForIndexInitialization "to" Expression Step Body ("next" | "end");
+
+BeginSequence : BeginSequenceKeyword WithCodeBlock Body Recover Always EndSequenceKeyword;
+
+DoCase : "do" "case" DoCaseOptions Otherwise "endcase":3;
+
+ForEach : "for" "each" AnyIdentifier "in" Expression Body "next";
+
+DoSwitch : "switch":4 Expression CaseSwitchOptions SwitchDefault "end";
+
+TryCatch : "try" Body CatchBlock "end";
+
+Return : "return":4 ExpressionAsType?;
+
+Break : "break":4 Expression?;
+
+ClassMemberDeclaration : '_HB_MEMBER' (MethodDeclaration | AttributeListDeclaration);
+
+PublicVariableDeclaration : "public":4 VariableDeclarationList;
+
+PrivateVariableDeclaration : "private":4 VariableDeclarationList;
+
+External : "external":4 IdentifierList;
+
+Announce : "announce":4 Identifier;
+
+Request : "request":4 IdentifierList;
+
+Throw : "throw" '(' Expression ')';
+
+StatementAssignmentExpression : LeftValue AssignOperator Expression;
+
+SelfExpression : '::' PrimaryExpression;
+
+PrefixedExpression : PrefixOperator Expression;
+
+PostfixedExpression : PrimaryExpression PostfixOperator+;
+
+AliasedMacro : AliasIdentifier '->' Macro;
+
+QualifiedExpression : AtomicExpression (':' AtomicExpression)+;
+
+@SkipNode
+KeywordsFunction : ( "begin" 
+                   | "break":4 
+                   | "class":4 
+                   | "command":4 
+                   | "else" 
+                   | "field":4 
+                   | "declare":4 
+                   | "default" 
+                   | "define":4 
+                   | "do" 
+                   | "each" 
+                   | "exit" 
+                   | "external":4 
+                   | "function":4 
+                   | "init" 
+                   | "loop" 
+                   | "otherwise":4 
+                   | "procedure":4 
+                   | "public":4 
+                   | "recover":4 
+                   | "sequence":4 
+                   | "step" 
+                   | "to" 
+                   | "translate":4 
+                   | "xtranslate":4 
+                   | "xcommand":4 ) ParParameters;
+
+MethodDeclaration : Identifier ParParametersDeclaration;
+
+@SkipNode
+ParParametersDeclaration : '(' ParametersDeclaration ')';
+
+AttributeListDeclaration : '{' IdentifierList '}';
+
+@Atomic
+MacroPrefix : (Letter | Digit | '_')*;
+
+@Fragment
+Letter : [a-z] | [A-Z];
+
+@Fragment
+Digit : [0-9];
+
+@Atomic
+MacroSufix : '.' (Letter | Digit | '_')*;
+
+MacroVar : MacroPrefix '&' IdentifierPattern MacroSufix? Spacing;
+
+MacroExpression : '&' ParenthesesExpressionList;
+
+FunctionReference : AnyIdentifier '(' ')';
+
+ValueByReference : '@' (FunctionReference | AliasedField | QualifiedVariable | AnyIdentifier);
+
+AliasedField : AliasIdentifier '->' AnyIdentifier;
+
+Parameter : Expression | ')'& | ','&;
+
+@SkipNode
+CommaParameter : ',' Parameter;
+
+@SkipNode
+ParameterCommaList : CommaParameter*;
+
+@SkipNode
+ParametersList : Parameter ParameterCommaList;
+
+@SkipNode
+OptionalParametersList : ParametersList?;
+
+@Fragment
+IIFKeyword : "iif" | "if";
+
+Body : (BodyStatement EndStmt)*;
+
+ElseIf : "elseif" Expression Body;
+
+ElseIfList : ElseIf*;
+
+Else : ("else" Body)?;
+
+@SkipNode
+OtherwiseBlock : "otherwise":4 Body;
+
+Otherwise : OtherwiseBlock?;
+
+DoCaseOption : "case" Expression Body;
+
+DoCaseOptions : DoCaseOption+;
+
+DoWhileKeyword : "do"? "while":4;
+
+@SkipNode
+StepArgument : "step" Expression;
+
+Step : StepArgument?;
+
+@Rule(Assignment)
+ForIndexInitialization : (AliasedField | Macro | QualifiedVariable | Identifier) AssignmentOperator Expression;
+
+BeginSequenceKeyword : "begin" "sequence":4;
+
+@SkipNode
+WithOption : "with" CodeBlockLiteral;
+
+@SkipNode
+CodeBlockLiteral : CodeBlockPattern Spacing;
+
+WithCodeBlock : WithOption?;
+
+EndSequenceKeyword : "endsequence":3 | ("end" "sequence":4?);
+
+@SkipNode
+UsingSpec : "using":4 Identifier;
+
+UsingIdentifier : UsingSpec?;
+
+@SkipNode
+RecoverBlock : "recover":4 UsingIdentifier Body;
+
+Recover : RecoverBlock?;
+
+@SkipNode
+AlwaysBlock : "always":4 Body;
+
+Always : AlwaysBlock?;
+
+@SkipNode
+ParenthesesSwitchConstant : '(' SwitchConstant ')';
+
+@SkipNode
+SwitchConstant : ParenthesesSwitchConstant | LogicalLiteral | StringLiteral | NumberLiteral;
+
+@SkipNode
+LogicalLiteral : LogicalPattern Spacing;
+
+@SkipNode
+StringLiteral : StringPattern Spacing;
+
+@SkipNode
+NumberLiteral : NumberPattern EndsNumber;
+
+CaseSwitchOption : "case" SwitchConstant Body;
+
+CaseSwitchOptions : CaseSwitchOption+;
+
+@SkipNode
+SwitchDefaultBody : "default" Body;
+
+SwitchDefault : SwitchDefaultBody?;
+
+CatchBlock : ("catch" AnyIdentifier? Body)?;
+
+CodeBlockParameters : VariableDeclarationList;
+
+CodeBlockPattern : '{' '|' CodeBlockParameters? '|' ExpressionList '}';
+
+@SkipNode
+ArrayItems : ValuesList?;
+
+@SkipNode
+ArrayLiteral : ArrayPattern Spacing;
+
+ArrayPattern : '{' ArrayItems '}';
+
+HashItem : Expression '=>' Expression?;
+
+@SkipNode
+HashItemsList : HashItem (',' HashItem)*;
+
+@SkipNode
+HashItems : HashItemsList?;
+
+@SkipNode
+HashContent : '=>' | HashItems;
+
+@SkipNode
+HashLiteral : HashPattern Spacing;
+
+HashPattern : '{' HashContent '}';
+
+@SkipNode
+NilValue : "nil" Spacing;
+
+@SkipNode
+Literal : StringLiteral | NumberLiteral | LogicalLiteral | ArrayLiteral | CodeBlockLiteral | HashLiteral | NilValue | DateTimeLiteral;
+
+@SkipNode
+DateTimeLiteral : DateTimePattern Spacing;
+
+@Atomic
+DateTimePattern : ('0d' Digit Digit Digit Digit Digit Digit Digit Digit) | ("d" (('"' DatePattern ("T"? TimePattern)? '"') | ('\'' DatePattern ("T"? TimePattern)? '\'') | ('[' DatePattern ("T"? TimePattern)? ']'))) | ('{' '^' (IntegerNumber ('-' | '/') IntegerNumber ('-' | '/') IntegerNumber ','?)? TimePattern? Spacing '}');
+
+@Atomic
+IntegerNumber : Digit+;
+
+@Atomic
+TimePattern : IntegerNumber (':' IntegerNumber (':' IntegerNumber)? ('.' IntegerNumber)?)? ("AM" | "PM")?;
+
+@Atomic
+DatePattern : IntegerNumber ('-' | '/' | '.') IntegerNumber ('-' | '/' | '.') IntegerNumber;
+
+CommaOrOpenCloseBracket : ',' | (']' '[');
+
+@SkipNode
+CommaIndexItem : CommaOrOpenCloseBracket Expression;
+
+@SkipNode
+IndexItemCommaList : CommaIndexItem*;
+
+@SkipNode
+IndexList : Expression IndexItemCommaList;
+
+ArrayIndex : '[' IndexList ']';
+
+@SkipNode
+AssignOperator : ':=' | '+=' | '-=' | '*=' | '/=' | '%=' | '^=' | EqualOperator;
+
+AssignmentExpression : ConditionalOrExpression AssignOperator Expression;
+
+@SkipNode
+ConditionalOrExpression : OrExpression | ConditionalAndExpression;
+
+OrExpression : ConditionalAndExpression ".or." ConditionalOrExpression;
+
+@SkipNode
+ConditionalAndExpression : AndExpression | OptionalRelationalExpression;
+
+AndExpression : OptionalRelationalExpression ".and." ConditionalAndExpression;
+
+@SkipNode
+OptionalRelationalExpression : RelationalExpression | OptionalAdditiveExpression;
+
+RelationalExpression : OptionalAdditiveExpression RelationalOperator OptionalRelationalExpression;
+
+@SkipNode
+OptionalAdditiveExpression : AdditiveExpression | OptionalMultiplicativeExpression;
+
+@SkipNode
+RelationalOperator : '>=' | '<=' | '<>' | '#' | '!=' | GreaterOperator | LessOperator | '==' | IsContainedOperator | EqualOperator;
+
+AdditiveExpression : OptionalMultiplicativeExpression (PlusSign | MinusSign) OptionalAdditiveExpression;
+
+@SkipNode
+OptionalMultiplicativeExpression : MultiplicativeExpression | OptionalBitOrExpression;
+
+@SkipNode
+PlusSign : '+' '+'!;
+
+@SkipNode
+MinusSign : '-' '+'!;
+
+MultiplicativeExpression : OptionalBitOrExpression MultOperator OptionalMultiplicativeExpression;
+
+@SkipNode
+OptionalBitOrExpression : BitOrExpression | OptionalBitXOrExpression;
+
+MultOperator : '*' | '/' | '%' | '^' | '**';
+
+BitOrExpression : OptionalBitXOrExpression '|' OptionalBitOrExpression;
+
+@SkipNode
+OptionalBitXOrExpression : BitXOrExpression | OptionalBitAndExpression;
+
+BitXOrExpression : OptionalBitAndExpression '^^' OptionalBitXOrExpression;
+
+@SkipNode
+OptionalBitAndExpression : BitAndExpression | OptionalShiftExpression;
+
+BitAndExpression : OptionalShiftExpression '&' OptionalBitAndExpression;
+
+@SkipNode
+OptionalShiftExpression : ShiftExpression | UnaryExpression;
+
+ShiftExpression : UnaryExpression ('<<' | '>>') OptionalShiftExpression;
+
+@SkipNode
+UnaryExpression : PrefixedExpression | PostfixedExpression | PrimaryExpression;
+
+@SkipNode
+PrimaryExpression : QualifiedExpression | AtomicExpression;
+
+@SkipNode
+PrefixOperator : '++' | '--' | NotOperator | PlusSign | MinusSign;
+
+PostfixOperator : '++' | '--';
+
+@SkipNode
+AtomicExpression : SelfExpression 
+                 | ArrayAccess 
+                 | AliasedExpression 
+                 | AliasedField 
+                 | AliasedMacro 
+                 | Literal 
+                 | IfInLine 
+                 | MacroFunctionCall 
+                 | AnySimpleFunctionCall 
+                 | Macro 
+                 | ParenthesesExpressionList 
+                 | AnyIdentifier 
+                 | ValueByReference;
+
+ArrayAccess : (ArrayLiteral 
+            | HashLiteral 
+            | StringLiteral 
+            | AliasedExpression 
+            | AliasedField 
+            | AliasedMacro 
+            | IfInLine 
+            | MacroFunctionCall 
+            | AnySimpleFunctionCall 
+            | Macro 
+            | AnyIdentifier) ArrayIndex;
+
+@SkipNode
+LeftValue : SelfExpression | QualifiedExpression | ArrayAccess | AliasedField | AliasedMacro | Macro | AnyIdentifier;
+
+@Atomic
+NotOperator : ".not." | ('!' '='!);
+
+@SkipNode
+GreaterOperator : '>' '='!;
+
+@SkipNode
+LessOperator : '<' ('=' | '>')!;
+
+@SkipNode
+IsContainedOperator : '$' | "in";
+
+Dump : "begindump" (EndDump! .)* EndDump;
+
+EndDump : '#' "pragma" "enddump";
+
+ParameterDeclaration : Identifier AsType;
+
+ParametersDeclaration : ParametersDeclarationList | '...' | ')'&;
+
+FunctionModifier : "static":4 | "init" | "exit";
+
+@Atomic
+StringPattern : ('"' (('\n' | '\"')! .)* '"') 
+              | ('\'' (('\n' | '\'')! .)* '\'') 
+              | ('[' (('\n' | ']')! .)* ']') 
+              | ("e" '"' (('\\' '\n'! .) | (('\n' | '\"')! .))* '"');
+
+@Atomic
+LogicalPattern : ".T." | ".F." | ".Y." | ".N.";
+
+@Atomic
+NumberPattern : (IntegerNumber '.' IntegerNumber) | (IntegerNumber '.' Letter!) | IntegerNumber | ('.' IntegerNumber);
+
+EndsNumber : ('?' | '&' | '_' | '~')* Spacing;
+
+@SkipNode
+ArraySubType : "of" DataType;
+
+DataType : "character":4 | "numeric":4 | "date" | "logical":4 | StringLiteral | "object":4 | "codeblock":4 | "hash" | Array | Class;
+
+ArrayType : ArraySubType?;
+
+Array : "array":4 ArrayType;
+
+Class : "class":4 Identifier;
+
+@SkipNode
+AsDataType : "as" DataType;
+
+@SkipNode
+AnyIdentifier : IdentifierPattern OptionalSpacing;
+
+@SkipNode
+Identifier : Keyword! IdentifierPattern OptionalSpacing;
+
+@Rule(Identifier)
+@Atomic
+IdentifierPattern : ([A-Z] | [a-z] | '_') ([A-Z] | [a-z] | [0-9] | '_')*;
+
+@NotExtendLiterals
+@SyntaxOnly
+EndStmt : AloneLineComment | NewLine | ';' | EOI;
+
+@Atomic
+Whitespace : (' ' | '\t' | '\f')+;
+
+@Atomic
+@Rule(Whitespace)
+OptionalWhitespace : (' ' | '\t' | '\f')*;
+
+@Atomic
+LineComment : ('//' | '&&') (('\n' | EOI)! .)*;
+
+@Atomic
+BlockComment : '/*' ('*/'! .)* '*/';
+
+@Atomic
+AloneLineComment : NewLine OptionalWhitespace '*' (('\n' | EOI)! .)*;
+
+@SyntaxOnly
+@Atomic
+NewLine : '\n' | '\r\n';
+
+@SyntaxOnly
+@NotExtendLiterals
+Spacing : (Whitespace |
+           (';' OptionalWhitespace BlockComment? OptionalWhitespace LineComment? NewLine) |
+           BlockComment)+;
+
+@FollowLiterals([A-Za-z_$][A-Za-z0-9_$]*)
+TestNoAlpha : ([a-z] | [A-Z] | [0-9] | '_')!;
+
+@FollowLiterals
+@SyntaxOnly
+OptionalSpacing : (Whitespace |
+                   (';' OptionalWhitespace BlockComment? OptionalWhitespace LineComment? NewLine) |
+                   BlockComment)*;
+
+@Fragment
+Keyword : ("announce":4 | "begin":4    | "break":4    | "case"        | "catch":4       | "default":4     | "each"        | "else"       | 
+           "elseif"     | "end"        | "endcase":4  | "enddo":4     | "endif":4       | "endsequence":4 | "exit"        | "extern":4   | 
+           "field":4    | "for"        | "function":4 | "in"          | "if"            | "iif"           | "init"        | "local":4    | 
+           "loop"       | "memvar":4   | "next"       | "nil"         | "otherwise":4   | "parameters":4  | "procedure":4 | "public":4   | 
+           "recover":4  | "return":4   | "self"       | "sequence":4  | "static":4      | "switch":4      | "try"         | "using":4    | 
+           "while":4) TestNoAlpha;
