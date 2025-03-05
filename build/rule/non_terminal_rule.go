@@ -134,11 +134,7 @@ func checkIsLexerRule(rulesMap map[Rule]bool, r Rule) bool {
 		case *OrRule:
 			lexerRule = compositeIsLexerRule(rulesMap, castRule)
 		case *NonTerminalRule:
-			if castRule.HasOption(FRAGMENT) || castRule.HasOption(ATOMIC) || castRule.HasOption(TOKEN) {
-				lexerRule = true
-			} else {
-				lexerRule = checkIsLexerRule(rulesMap, castRule.Rule())
-			}
+			lexerRule = castRule.HasOption(FRAGMENT)
 		case *OneOrMoreRule:
 			lexerRule = checkIsLexerRule(rulesMap, castRule.Rule())
 		case *ZeroOrMoreRule:

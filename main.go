@@ -150,7 +150,8 @@ func testLexer() {
 	os.WriteFile("C:\\Users\\fabio\\temp\\teste.txt", []byte(w.String()), 0644)
 
 	// i := input.NewStringInput("private function teste(a, b)\n {")
-	i, inputErr := input.NewFileInput("C:\\Users\\fabio\\dev\\github\\sdbrdd\\sdb-med-lib\\src\\main\\clipper\\sdb_api_med.prg")
+	// i, inputErr := input.NewFileInput("C:\\Users\\fabio\\dev\\github\\sdbrdd\\sdb-med-lib\\src\\main\\clipper\\sdb_api_med.prg")
+	i, inputErr := input.NewFileInput("C:\\Users\\fabio\\temp\\teste.prg")
 	if inputErr != nil {
 		fmt.Print(inputErr)
 		return

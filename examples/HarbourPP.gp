@@ -199,7 +199,6 @@ UndefDirective : Undef Identifier;
 
 ErrorDirective : "error" ResultRules;
 
-@Atomic
 IncludeName : (DoubleQuoteString | SingleQuoteString);
 
 IncludeDirective : Include IncludeName;
