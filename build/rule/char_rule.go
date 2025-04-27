@@ -56,7 +56,7 @@ func (r *CharRule) ToText(writer util.TextWriter) {
 	}
 }
 
-func (r *CharRule) Visit(visitor LexerVisitor) {
+func (r *CharRule) Visit(visitor RuleVisitor) {
 	visitor.VisitCharRule(r)
 }
 

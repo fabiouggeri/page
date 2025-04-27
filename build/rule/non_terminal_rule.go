@@ -1,6 +1,10 @@
 package rule
 
-import "github.com/fabiouggeri/page/util"
+import (
+	"maps"
+
+	"github.com/fabiouggeri/page/util"
+)
 
 type NonTerminalRule struct {
 	id      string
@@ -9,6 +13,16 @@ type NonTerminalRule struct {
 }
 
 var _ SimpleRule = &NonTerminalRule{}
+
+func (r *NonTerminalRule) Clone() *NonTerminalRule {
+	clone := &NonTerminalRule{
+		id:      r.id,
+		rule:    r.rule,
+		options: make(map[*RuleOption]string, len(r.options)),
+	}
+	maps.Copy(clone.options, r.options)
+	return clone
+}
 
 func (r *NonTerminalRule) Id() string {
 	return r.id
@@ -26,7 +40,7 @@ func (r *NonTerminalRule) ToText(writer util.TextWriter) {
 	writer.WriteString(r.id)
 }
 
-func (r *NonTerminalRule) Visit(visitor LexerVisitor) {
+func (r *NonTerminalRule) Visit(visitor RuleVisitor) {
 	visitor.VisitNonTerminal(r)
 }
 

@@ -27,6 +27,6 @@ func (r *NotRule) ToText(writer util.TextWriter) {
 	writer.WriteRune('!')
 }
 
-func (r *NotRule) Visit(visitor LexerVisitor) {
+func (r *NotRule) Visit(visitor RuleVisitor) {
 	visitor.VisitNotRule(r)
 }

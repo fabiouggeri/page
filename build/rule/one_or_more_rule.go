@@ -21,7 +21,7 @@ func (r *OneOrMoreRule) ToText(writer util.TextWriter) {
 	writer.WriteRune('+')
 }
 
-func (r *OneOrMoreRule) Visit(visitor LexerVisitor) {
+func (r *OneOrMoreRule) Visit(visitor RuleVisitor) {
 	visitor.VisitOneOrMoreRule(r)
 }
 

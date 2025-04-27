@@ -7,7 +7,7 @@ type TokenId string
 type Rule interface {
 	ToText(writer util.TextWriter)
 	String() string
-	Visit(visitor LexerVisitor)
+	Visit(visitor RuleVisitor)
 }
 
 type TerminalRule interface {
@@ -29,7 +29,7 @@ type CompoundRule interface {
 	SetRule(index int, rule Rule)
 }
 
-type LexerVisitor interface {
+type RuleVisitor interface {
 	VisitNonTerminal(rule *NonTerminalRule)
 	VisitAndRule(rule *AndRule)
 	VisitOrRule(rule *OrRule)

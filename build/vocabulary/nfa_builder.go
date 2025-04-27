@@ -16,7 +16,7 @@ type nfaVisitor struct {
 	maxSymbol  rune
 }
 
-var _ rule.LexerVisitor = &nfaVisitor{}
+var _ rule.RuleVisitor = &nfaVisitor{}
 
 func RulesToNFA(rules ...*rule.NonTerminalRule) *automata.State {
 	maxSymbol := rulesMaxSymbol(rules...)

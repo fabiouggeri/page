@@ -21,7 +21,7 @@ func (r *OptionalRule) ToText(writer util.TextWriter) {
 	writer.WriteRune('?')
 }
 
-func (r *OptionalRule) Visit(visitor LexerVisitor) {
+func (r *OptionalRule) Visit(visitor RuleVisitor) {
 	visitor.VisitOptionalRule(r)
 }
 

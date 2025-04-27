@@ -32,7 +32,7 @@ func (r *OrRule) ToText(writer util.TextWriter) {
 	writer.WriteRune(')')
 }
 
-func (r *OrRule) Visit(visitor LexerVisitor) {
+func (r *OrRule) Visit(visitor RuleVisitor) {
 	visitor.VisitOrRule(r)
 }
 

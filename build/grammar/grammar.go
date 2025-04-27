@@ -17,6 +17,7 @@ type Grammar struct {
 	name        string
 	options     GrammarOptions
 	encode      *charmap.Charmap
+	firstRule   *rule.NonTerminalRule
 	mainRule    *rule.NonTerminalRule
 	rules       map[string]*rule.NonTerminalRule
 	lexerRules  *util.Set[*rule.NonTerminalRule]
@@ -146,6 +147,12 @@ func (o *GrammarOptions) ParserName() string {
 }
 
 func (g *Grammar) Rules(rules ...*rule.NonTerminalRule) error {
+	if len(rules) == 0 {
+		return nil
+	}
+	if g.firstRule == nil {
+		g.firstRule = rules[0]
+	}
 	for _, r := range rules {
 		if _, found := g.rules[r.Id()]; !found {
 			g.rules[r.Id()] = r
@@ -159,18 +166,27 @@ func (g *Grammar) Rules(rules ...*rule.NonTerminalRule) error {
 	return nil
 }
 
+func (g *Grammar) MainRule() *rule.NonTerminalRule {
+	return g.mainRule
+}
+
 func (g *Grammar) mapRules() {
 	if g.lexerRules != nil && g.parserRules != nil {
 		return
+	}
+	if g.mainRule == nil {
+		g.mainRule = g.firstRule
 	}
 	g.errors = make([]error, 0)
 	g.lexerRules = util.NewSet[*rule.NonTerminalRule]()
 	g.parserRules = util.NewSet[*rule.NonTerminalRule]()
 	for _, r := range g.rules {
-		if r.IsLexer() {
-			g.lexerRules.Add(r)
-		} else if !r.HasOption(rule.FRAGMENT) {
-			g.parserRules.Add(r)
+		if !r.HasOption(rule.FRAGMENT) {
+			if r.IsLexer() {
+				g.lexerRules.Add(g.replaceFragments(r))
+			} else {
+				g.parserRules.Add(g.replaceFragments(r))
+			}
 		}
 	}
 	lexerRulesMap := g.mapLexerRulesByName()
@@ -178,6 +194,43 @@ func (g *Grammar) mapRules() {
 		g.mapAnonymousRules(lexerRulesMap, r.Rule())
 	}
 	g.validateRules()
+}
+
+func (g *Grammar) replaceFragments(r *rule.NonTerminalRule) *rule.NonTerminalRule {
+	for replaceNextFragment(r) {
+		// do nothing
+	}
+	return r
+}
+
+func replaceNextFragment(r *rule.NonTerminalRule) bool {
+	replaced := false
+	r.WalkThrough(func(r rule.Rule) {
+		switch castRule := r.(type) {
+		case rule.CompoundRule:
+			for i, subRule := range castRule.Rules() {
+				if castSubRule, ok := subRule.(*rule.NonTerminalRule); ok {
+					if castSubRule.HasOption(rule.FRAGMENT) {
+						castRule.SetRule(i, castSubRule.Rule())
+						replaced = true
+						break
+					}
+				}
+			}
+		case rule.SimpleRule:
+			if castSubRule, ok := castRule.Rule().(*rule.NonTerminalRule); ok {
+				if castSubRule.HasOption(rule.FRAGMENT) {
+					castRule.SetRule(castSubRule.Rule())
+					replaced = true
+				}
+			}
+		default:
+			// do nothing
+		}
+	}, func(r rule.Rule) bool {
+		return !replaced
+	})
+	return replaced
 }
 
 func (g *Grammar) validateRules() {

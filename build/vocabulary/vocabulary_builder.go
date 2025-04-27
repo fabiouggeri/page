@@ -3,6 +3,7 @@ package vocabulary
 import (
 	"github.com/fabiouggeri/page/build/automata"
 	"github.com/fabiouggeri/page/build/grammar"
+	"github.com/fabiouggeri/page/build/rule"
 	runtime "github.com/fabiouggeri/page/runtime/lexer"
 	"github.com/fabiouggeri/page/util"
 )
@@ -15,7 +16,15 @@ type vocabularyBuilder struct {
 }
 
 func FromGrammar(grammar *grammar.Grammar) *runtime.Vocabulary {
-	return FromDFA(automata.NFAToDFA(RulesToNFA(grammar.LexerRules()...)))
+	rules := grammar.LexerRules()
+	v := FromDFA(automata.NFAToDFA(RulesToNFA(rules...)))
+	for tokenIndex, tokenName := range v.TokensNames() {
+		r := grammar.GetRule(tokenName)
+		if r != nil && r.HasOption(rule.IGNORE) {
+			v.Ignore(tokenIndex)
+		}
+	}
+	return v
 }
 
 func FromDFA(dfa *automata.State) *runtime.Vocabulary {
@@ -33,12 +42,14 @@ func (vb *vocabularyBuilder) build() *runtime.Vocabulary {
 	tokenId := 1
 	tokensNames := make([]string, 0, vb.dfa.RulesTypesCount())
 	tokensTypes := vb.tokensTypes.Items()
-	tokensNames = append(tokensNames, "eof")
-	vb.tokensMap["eof"] = 0
+	tokensNames = append(tokensNames, "EOI")
+	vb.tokensMap["EOI"] = 0
 	for _, tokenType := range tokensTypes {
-		tokensNames = append(tokensNames, tokenType)
-		vb.tokensMap[tokenType] = tokenId
-		tokenId++
+		if tokenType != "EOI" {
+			tokensNames = append(tokensNames, tokenType)
+			vb.tokensMap[tokenType] = tokenId
+			tokenId++
+		}
 	}
 	v := runtime.NewVocabulary(tokensNames, vb.buildTransitionTable(), vb.buildTokensTable())
 	return v

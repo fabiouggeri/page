@@ -27,6 +27,6 @@ func (r *TestRule) ToText(writer util.TextWriter) {
 	writer.WriteRune('&')
 }
 
-func (r *TestRule) Visit(visitor LexerVisitor) {
+func (r *TestRule) Visit(visitor RuleVisitor) {
 	visitor.VisitTestRule(r)
 }

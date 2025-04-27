@@ -72,7 +72,7 @@ func escapeString(s string) string {
 }
 
 // Visit accepts a LexerVisitor and calls its VisitStringRule method.
-func (r *StringRule) Visit(visitor LexerVisitor) {
+func (r *StringRule) Visit(visitor RuleVisitor) {
 	visitor.VisitStringRule(r)
 }
 

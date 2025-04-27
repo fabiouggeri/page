@@ -14,6 +14,9 @@ type lexerError struct {
 	message string
 }
 
+const LEX_ERROR_EOF = 1
+const LEX_ERROR_INVALID_CHAR = 2
+
 var _ error.Error = &lexerError{}
 
 func newError(index, row, col, code int, message string, args ...any) *lexerError {

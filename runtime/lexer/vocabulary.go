@@ -10,6 +10,7 @@ type Vocabulary struct {
 	tokensNames      []string
 	transitionsTable [][]int
 	tokensTypes      [][]int
+	ignoredTypes     []int
 }
 
 func NewVocabulary(tokensNames []string, transitionsTable [][]int, tokensTypes [][]int) *Vocabulary {
@@ -48,6 +49,31 @@ func (v *Vocabulary) TokenName(index int) string {
 		return ""
 	}
 	return v.tokensNames[index]
+}
+
+func (v *Vocabulary) TokenIndex(name string) int {
+	for i, t := range v.tokensNames {
+		if t == name {
+			return i
+		}
+	}
+	return -1
+}
+
+func (v *Vocabulary) Ignore(tokensTypes ...int) {
+	if v.ignoredTypes == nil {
+		v.ignoredTypes = make([]int, 0, len(tokensTypes))
+	}
+	v.ignoredTypes = append(v.ignoredTypes, tokensTypes...)
+}
+
+func (v *Vocabulary) IsIgnored(tokenType int) bool {
+	for _, t := range v.ignoredTypes {
+		if t == tokenType {
+			return true
+		}
+	}
+	return false
 }
 
 func (v *Vocabulary) Write(writer util.TextWriter) {

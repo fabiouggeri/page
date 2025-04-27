@@ -10,6 +10,7 @@ import (
 	"github.com/fabiouggeri/page/build/rule"
 	"github.com/fabiouggeri/page/build/syntax"
 	"github.com/fabiouggeri/page/build/vocabulary"
+	"github.com/fabiouggeri/page/runtime/ast"
 	"github.com/fabiouggeri/page/runtime/input"
 	"github.com/fabiouggeri/page/runtime/lexer"
 	"github.com/fabiouggeri/page/runtime/parser"
@@ -109,7 +110,7 @@ func testLexer() {
 		fmt.Print(errGrammar)
 		return
 	}
-	fmt.Print("Grammar name: ", g1.Name())
+	fmt.Println("Grammar name: ", g1.Name())
 	// g1 := grammar.New("teste")
 	// err := g1.Rules(id(), functionKeyword(), private(), plus(), minus(), openPar(), closePar(), functionSyntax(), space(), lineComment(), blockComment())
 	// if err != nil {
@@ -145,12 +146,13 @@ func testLexer() {
 	v.Write(w)
 	w.NewLine()
 	w.WriteString("====================== SYNTAX ========================\n")
-	s := syntax.FromGrammar(g1)
+	s := syntax.FromGrammar(g1, v)
+	s.Write(w)
 
 	os.WriteFile("C:\\Users\\fabio\\temp\\teste.txt", []byte(w.String()), 0644)
 
 	// i := input.NewStringInput("private function teste(a, b)\n {")
-	// i, inputErr := input.NewFileInput("C:\\Users\\fabio\\dev\\github\\sdbrdd\\sdb-med-lib\\src\\main\\clipper\\sdb_api_med.prg")
+	//i, inputErr := input.NewFileInput("C:\\Users\\fabio\\dev\\github\\sdbrdd\\sdb-med-lib\\src\\main\\clipper\\sdb_api_med.prg")
 	i, inputErr := input.NewFileInput("C:\\Users\\fabio\\temp\\teste.prg")
 	if inputErr != nil {
 		fmt.Print(inputErr)
@@ -161,8 +163,10 @@ func testLexer() {
 	// fmt.Print(d.String())
 	p := parser.New(l, s)
 	ast := p.Execute()
-	fmt.Print(ast)
-	printTokens(l, v)
+	if ast != nil {
+		printTree(ast, i, s, 0)
+	}
+	//printTokens(l, v)
 }
 
 func printTokens(l *lexer.Lexer, v *lexer.Vocabulary) {
@@ -174,7 +178,7 @@ func printTokens(l *lexer.Lexer, v *lexer.Vocabulary) {
 	// 	fmt.Printf("Error: %s\n", lexError)
 	// }
 	token, lexError := l.NextToken()
-	for token != &lexer.EOF_TOKEN {
+	for token != nil && !token.IsType(lexer.TKN_EOF) {
 		if lexError == nil {
 			fmt.Printf("Row: %d, Col: %d, Types: %v\n", token.Row(), token.Col(), tokensNames(v, token))
 		} else {
@@ -182,6 +186,45 @@ func printTokens(l *lexer.Lexer, v *lexer.Vocabulary) {
 		}
 		token, lexError = l.NextToken()
 	}
+}
+
+func printTree(node *ast.Node, in input.Input, s *parser.Syntax, i int) {
+	printNode(node, in, s, i)
+	child := node.FirstChild()
+	for child != nil {
+		printTree(child, in, s, i+1)
+		child = child.Sibling()
+	}
+}
+
+func printNode(node *ast.Node, in input.Input, s *parser.Syntax, i int) {
+	for range i {
+		fmt.Print("   ")
+	}
+	fmt.Print("[")
+	fmt.Print(s.RuleName(node.RuleType()))
+	fmt.Print("] : '")
+	fmt.Print(formatText(in.GetText(node.Start(), node.End())))
+	fmt.Println("'")
+}
+
+func formatText(text string) string {
+	sb := strings.Builder{}
+	for _, c := range text {
+		switch c {
+		case '\n':
+			sb.WriteString("\\n")
+		case '\r':
+			sb.WriteString("\\r")
+		case '\t':
+			sb.WriteString("\\t")
+		case '\f':
+			sb.WriteString("\\f")
+		default:
+			sb.WriteRune(rune(c))
+		}
+	}
+	return sb.String()
 }
 
 func tokensNames(v *lexer.Vocabulary, t *lexer.Token) string {

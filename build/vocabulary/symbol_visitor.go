@@ -11,7 +11,7 @@ type maxSymbolVisitor struct {
 	visitedRule map[rule.Rule]bool
 }
 
-var _ rule.LexerVisitor = &maxSymbolVisitor{}
+var _ rule.RuleVisitor = &maxSymbolVisitor{}
 
 func newMaxSymbolVisitor() *maxSymbolVisitor {
 	return &maxSymbolVisitor{

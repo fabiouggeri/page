@@ -32,7 +32,7 @@ func (r *AndRule) ToText(writer util.TextWriter) {
 	writer.WriteRune(')')
 }
 
-func (r *AndRule) Visit(visitor LexerVisitor) {
+func (r *AndRule) Visit(visitor RuleVisitor) {
 	visitor.VisitAndRule(r)
 }
 

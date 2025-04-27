@@ -14,6 +14,7 @@ var (
 	FRAGMENT  *RuleOption = &RuleOption{name: "Fragment", parameterized: false, mandatory: false}
 	NAME      *RuleOption = &RuleOption{name: "Name", parameterized: true, mandatory: true}
 	MEMOIZE   *RuleOption = &RuleOption{name: "Memoize", parameterized: false, mandatory: false}
+	IGNORE    *RuleOption = &RuleOption{name: "Ignore", parameterized: false, mandatory: false}
 )
 
 var AllOptions = []*RuleOption{
@@ -24,6 +25,7 @@ var AllOptions = []*RuleOption{
 	FRAGMENT,
 	NAME,
 	MEMOIZE,
+	IGNORE,
 }
 
 func (o *RuleOption) String() string {

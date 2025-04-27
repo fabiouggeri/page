@@ -1,7 +1,7 @@
 grammar HarbourPP;
 
 /*********************************************************************************
-                              RULES
+                              MAIN RULE
 **********************************************************************************/
 
 PreProcessor : Statements EOI;
@@ -9,13 +9,6 @@ PreProcessor : Statements EOI;
 /*********************************************************************************
                               LEXER
 **********************************************************************************/
-
-@Fragment
-MultilineDoubleQuoteStringSegment : ('\n' | '\"' | BreakString)!+;
-
-@Fragment
-MultilineSingleQuoteStringSegment : ('\n' | '\'' | BreakString)!+;
-
 @Fragment
 Letter : [a-z] | [A-Z];
 
@@ -31,39 +24,35 @@ TimePattern : IntegerNumber (':' IntegerNumber (':' IntegerNumber)? ('.' Integer
 @Fragment
 DatePattern : IntegerNumber ('-' | '/' | '.') IntegerNumber ('-' | '/' | '.') IntegerNumber;
 
-@Fragment
-OneSpace : (' ' | '\t' | '\f');
-
 NewLine : '\n' | '\r\n';
 
-AloneLineComment : '*' ('\n' | EOI)!*;
+@Ignore
+Whitespace : (' ' | '\t' | '\f')+;
 
-Whitespace : OneSpace+;
-
+@Ignore
 BlockComment : '/*' ('*'! | ('*' '/'!))* '*/';
 
+@Ignore
 LineComment : ('//' | '&&') ('\n' | EOI)!*;
 
 BracketString : '[' ('\n' | ']')!* ']';
 
 LogicalLiteral : ".T." | ".F." | ".Y." | ".N.";
 
-DoubleQuoteString : '"' ('\n' | '\"')!* '"';
+DoubleQuoteString : '"' ('\n' | '"')!* '"';
 
 SingleQuoteString : '\'' ('\n' | '\'')!* '\'';
 
+DateTime : ('0d' Digit Digit Digit Digit Digit Digit Digit Digit) 
+         | ('d"' ('\n' | '"')!* '"') 
+			| ("d'" ('\n' | '\'')!* "'") 
+			| ('d[' ('\n' | ']')!* ']');
+
 // @Atomic
-DateTimeLiteral : ('0d' Digit Digit Digit Digit Digit Digit Digit Digit) 
-                | ("d" ( ('"' DatePattern ("T"? TimePattern)? '"') 
-					        | ('\'' DatePattern ("T"? TimePattern)? '\'') 
-							  | ('[' DatePattern ("T"? TimePattern)? ']'))) 
-							  | ('{' '^' (IntegerNumber ('-' | '/') IntegerNumber ('-' | '/') IntegerNumber ','?)? TimePattern? Ignore '}');
+DateTimeLiteral : DateTime 
+                | ('{' '^' (IntegerNumber ('-' | '/') IntegerNumber ('-' | '/') IntegerNumber ','?)? TimePattern? '}');
 
 NumberLiteral : (IntegerNumber '.' IntegerNumber) | (IntegerNumber '.' Letter!) | IntegerNumber | ('.' IntegerNumber);
-
-MultiLineDoubleQuoteString : '"' (MultilineDoubleQuoteStringSegment BreakString)+ ('\n' | '\"')!* '"';
-
-MultiLineSingleQuoteString : '\'' (MultilineSingleQuoteStringSegment BreakString)+ ('\n' | '\'')!* '\'';
 
 Identifier : ([A-Z] | [a-z] | '_') ([A-Z] | [a-z] | [0-9] | '_')*;
 
@@ -117,23 +106,12 @@ XTranslate : "xtranslate":4;
                               PARSER
 **********************************************************************************/
 @SkipNode
-Statements : Statement*;
+Statements : (Statement) (NewLine Statement?)*;
 
 @SkipNode
-Ignore : Whitespace | BlockComment | LineComment | ContinueNL;
+Statement : DirectiveStatement | AloneLineComment | AnyStatement;
 
-@Memoize
-ContinueNL : OneSpace* ';' (BlockComment | LineComment | Whitespace)* NewLine;
-
-@Name(Spacing)
-@SkipNode
-OptionalSpacing : Ignore*;
-
-@SkipNode
-Spacing : Ignore+;
-
-@SkipNode
-Statement : DirectiveStatement | EmptyStatement | AnyStatement;
+EndStmt : NewLine | EOI;
 
 @SkipNode
 DirectiveStatement : '#' 
@@ -162,9 +140,12 @@ DirectiveStatement : '#'
                      | YUntranslateDirective 
                      | DumpBlock);
 
-EmptyStatement : Ignore* AloneLineComment?;
+// EmptyStatement : NewLine;
 
 AnyStatement : AnyRules;
+
+@Ignore
+AloneLineComment : '*' AnyRule*;
 
 @SkipNode
 AnyRules : AnyRule+;
@@ -248,16 +229,16 @@ OptionalMatchMarker : '[' OptionalMatchMarkerPattern ']';
 OptionalMatchMarkerPattern : OptionalMatchMarkerChunk+;
 
 @SkipNode
-OptionalMatchMarkerChunk : ResultSep! (OptionalMatchMarker | MatchMarker | Identifier | Literal | Ignore | EscapedChar | Separator);
+OptionalMatchMarkerChunk : ResultSep! (OptionalMatchMarker | MatchMarker | Identifier | Literal | EscapedChar | Separator);
 
 @SkipNode
 MatchMarker : IdMarker | ListMarker | RestrictMarker | WildMarker | ExtendedMarker | IdentifierMarker;
 
 @SkipNode
-Literal : LogicalLiteral | DoubleQuoteString | SingleQuoteString | DateTimeLiteral | NumberLiteral | MultiLineDoubleQuoteString | MultiLineSingleQuoteString;
+Literal : LogicalLiteral | DoubleQuoteString | SingleQuoteString | DateTimeLiteral | NumberLiteral;
 
 @SkipNode
-MatchChunk : ResultSep! (OptionalMatchMarker | MatchMarker | Identifier | Literal | Ignore | EscapedChar | ']' | Separator);
+MatchChunk : ResultSep! (OptionalMatchMarker | MatchMarker | Identifier | Literal | EscapedChar | ']' | Separator);
 
 IdMarker : '<' Identifier '>';
 
@@ -274,7 +255,7 @@ IdentifierMarker : '<' '!' Identifier '!' '>';
 RestrictValues : RestrictValue (',' RestrictValue)*;
 
 @SkipNode
-RestrictValue : (('>' | ',')! (Identifier | Literal | Ignore | EscapedChar | Separator))+;
+RestrictValue : (('>' | ',')! (Identifier | Literal | EscapedChar | Separator))+;
 
 NullMarker : '<' '-' Identifier '-' '>';
 
@@ -297,10 +278,10 @@ OptionalResultMarker : '[' OptionalResultMarkerPattern ']';
 OptionalResultMarkerPattern : OptionalResultMarkerChunk+;
 
 @SkipNode
-OptionalResultMarkerChunk : OptionalResultMarker | ResultMarker | Identifier | Literal | Ignore | EscapedChar | Separator;
+OptionalResultMarkerChunk : OptionalResultMarker | ResultMarker | Identifier | Literal | EscapedChar | Separator;
 
 @SkipNode
-ResultChunk : OptionalResultMarker | ResultMarker | Identifier | Literal | Ignore | EscapedChar | ']' | Separator;
+ResultChunk : OptionalResultMarker | ResultMarker | Identifier | Literal | EscapedChar | ']' | Separator;
 
 BeginDumpBlock : "pragma" "begindump";
 
@@ -310,6 +291,5 @@ EndDumpBlock : "pragma" "enddump";
 BracketSequence : ('[' (']'! AnyRule)+ ']') | BracketString;
 
 @SkipNode
-AnyRule : BracketSequence | Literal | Ignore | Identifier | Separator;
+AnyRule : BracketSequence | Literal | Identifier | Separator;
 
-BreakString : ';' OneSpace* NewLine;

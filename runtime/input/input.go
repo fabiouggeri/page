@@ -5,6 +5,7 @@ type Input interface {
 	Skip() bool
 	Eof() bool
 	Index() int
+	GetText(start, end int) string
 	Close()
 }
 
@@ -12,6 +13,8 @@ type StringInput struct {
 	input string
 	index int
 }
+
+var _ Input = &StringInput{}
 
 func NewStringInput(input string) *StringInput {
 	return &StringInput{
@@ -46,4 +49,8 @@ func (i *StringInput) Index() int {
 
 func (i *StringInput) Close() {
 	// do nothing
+}
+
+func (i *StringInput) GetText(start int, end int) string {
+	return i.input[start:end]
 }

@@ -95,3 +95,13 @@ func (f *FileInput) Close() {
 	f.file = nil
 	f.reader = nil
 }
+
+func (f *FileInput) GetText(start int, end int) string {
+	for !f.Eof() && len(f.buffer) < end {
+		f.Skip()
+	}
+	if end > len(f.buffer) {
+		return ""
+	}
+	return string(f.buffer)[start:end]
+}

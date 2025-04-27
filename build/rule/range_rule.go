@@ -33,7 +33,7 @@ func (r *RangeRule) ToText(writer util.TextWriter) {
 	writer.WriteRune(r.start).WriteString("-").WriteRune(r.end)
 }
 
-func (r *RangeRule) Visit(visitor LexerVisitor) {
+func (r *RangeRule) Visit(visitor RuleVisitor) {
 	visitor.VisitRangeRule(r)
 }
 

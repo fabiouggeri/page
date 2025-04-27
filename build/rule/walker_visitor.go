@@ -6,7 +6,7 @@ type walkerVisitor struct {
 	visited map[Rule]bool
 }
 
-var _ LexerVisitor = &walkerVisitor{}
+var _ RuleVisitor = &walkerVisitor{}
 
 func newWalkerVisitor(visit func(r Rule), isVisit func(r Rule) bool) *walkerVisitor {
 	wv := &walkerVisitor{
