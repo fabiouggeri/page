@@ -39,6 +39,9 @@ func (t *Token) Types() []int {
 }
 
 func (t *Token) IsType(tokenType int) bool {
+	if len(t.types) == 0 {
+		return false
+	}
 	if t.types[0] == tokenType {
 		return true
 	}

@@ -84,12 +84,16 @@ func (r *NonTerminalRule) WalkThrough(visit func(r Rule), isVisit func(r Rule) b
 }
 
 func (r *NonTerminalRule) IsLexer() bool {
+	return r.ruleIsLexer(make(map[Rule]bool, 64))
+}
+
+func (r *NonTerminalRule) ruleIsLexer(rulesMap map[Rule]bool) bool {
 	if r.HasOption(FRAGMENT) {
 		return false
 	} else if r.HasOption(ATOMIC) || r.HasOption(TOKEN) {
 		return true
 	}
-	return checkIsLexerRule(make(map[Rule]bool, 64), r.Rule())
+	return checkIsLexerRule(rulesMap, r.Rule())
 }
 
 func compositeIsLexerRule(rulesMap map[Rule]bool, r CompoundRule) bool {
@@ -97,7 +101,7 @@ func compositeIsLexerRule(rulesMap map[Rule]bool, r CompoundRule) bool {
 	for _, component := range rules {
 		switch castRule := component.(type) {
 		case *AndRule:
-			if allRulesAreLiteral(castRule.Rules()) {
+			if allRulesAreLiteral(rulesMap, castRule.Rules()) {
 				return false
 			} else if !compositeIsLexerRule(rulesMap, castRule) {
 				return false
@@ -119,7 +123,7 @@ func compositeIsLexerRule(rulesMap map[Rule]bool, r CompoundRule) bool {
 	return true
 }
 
-func allRulesAreLiteral(rules []Rule) bool {
+func allRulesAreLiteral(rulesMap map[Rule]bool, rules []Rule) bool {
 	for _, component := range rules {
 		switch component.(type) {
 		case *StringRule:
@@ -140,7 +144,7 @@ func checkIsLexerRule(rulesMap map[Rule]bool, r Rule) bool {
 			*RangeRule:
 			lexerRule = true
 		case *AndRule:
-			if allRulesAreLiteral(castRule.Rules()) {
+			if allRulesAreLiteral(rulesMap, castRule.Rules()) {
 				lexerRule = false
 			} else {
 				lexerRule = compositeIsLexerRule(rulesMap, castRule)

@@ -5,6 +5,7 @@ type Input interface {
 	Skip() bool
 	Eof() bool
 	Index() int
+	SetIndex(index int)
 	GetText(start, end int) string
 	Close()
 }
@@ -45,6 +46,12 @@ func (i *StringInput) Eof() bool {
 
 func (i *StringInput) Index() int {
 	return i.index
+}
+
+func (i *StringInput) SetIndex(index int) {
+	if index >= 0 && index < len(i.input) {
+		i.index = index
+	}
 }
 
 func (i *StringInput) Close() {

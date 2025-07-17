@@ -18,6 +18,7 @@ type syntaxBuilder struct {
 	vocabulary    *lexer.Vocabulary
 	nextId        int
 }
+
 type parserRule struct {
 	rule  *rule.NonTerminalRule
 	id    int
@@ -38,39 +39,63 @@ func FromGrammar(g *grammar.Grammar, vocabulary *lexer.Vocabulary) *parser.Synta
 }
 
 func (b *syntaxBuilder) build(g *grammar.Grammar) {
+	allRules := b.grammarRules(g)
+	lastRuleId := len(allRules) - 1
+	for _, parserRule := range allRules {
+		b.createSyntax(parserRule, lastRuleId)
+	}
+	b.syntax = parser.SyntaxNew(len(b.parserRules), lastRuleId)
+	for _, parserRule := range b.parserRules {
+		b.syntax.Set(parserRule.id, parserRule.name, parserRule.rules)
+		b.setOptions(parserRule)
+		if b.isMainRule(g, parserRule.name) {
+			b.syntax.SetStartRule(parserRule.id)
+		}
+	}
+}
+
+func (b *syntaxBuilder) grammarRules(g *grammar.Grammar) []*parserRule {
 	allRules := make([]*parserRule, 0, len(g.ParserRules())+len(g.LexerRules()))
 	grammarParserRules := g.ParserRules()
-	for _, r := range grammarParserRules {
+	for _, grammarRule := range grammarParserRules {
 		parserRule := &parserRule{
-			rule:  r,
+			rule:  grammarRule,
 			id:    len(b.parserRules),
-			name:  r.Id(),
+			name:  grammarRule.Id(),
 			rules: make([]int, 0),
 		}
-		b.parserRules[r.Id()] = parserRule
+		b.parserRules[grammarRule.Id()] = parserRule
 		allRules = append(allRules, parserRule)
 	}
 	grammarLexerRules := g.LexerRules()
-	for _, r := range grammarLexerRules {
+	for _, grammarRule := range grammarLexerRules {
 		parserRule := &parserRule{
-			rule:  r,
+			rule:  grammarRule,
 			id:    len(b.parserRules),
-			name:  r.Id(),
+			name:  grammarRule.Id(),
 			rules: make([]int, 0),
 			lexer: true,
 		}
-		b.parserRules[r.Id()] = parserRule
+		b.parserRules[grammarRule.Id()] = parserRule
 		allRules = append(allRules, parserRule)
 	}
-	lastRuleId := len(allRules) - 1
-	for _, r := range allRules {
-		b.createSyntax(r, lastRuleId)
+	return allRules
+}
+
+func (b *syntaxBuilder) setOptions(v *parserRule) {
+	if v.rule == nil {
+		return
 	}
-	b.syntax = parser.SyntaxNew(len(b.parserRules), lastRuleId)
-	for _, v := range b.parserRules {
-		b.syntax.Set(v.id, v.name, v.rules)
-		if b.isMainRule(g, v.name) {
-			b.syntax.SetStartRule(v.id)
+	for _, option := range v.rule.Options() {
+		switch option {
+		case rule.IGNORE:
+			b.syntax.SetOption(v.id, parser.IGNORE)
+		case rule.SKIP_NODE:
+			b.syntax.SetOption(v.id, parser.SKIP_NODE)
+		case rule.MEMOIZE:
+			b.syntax.SetOption(v.id, parser.MEMOIZE)
+		default:
+			// do nothing
 		}
 	}
 }

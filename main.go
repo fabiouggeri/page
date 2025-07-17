@@ -105,7 +105,8 @@ func blockComment() *rule.NonTerminalRule {
 }
 
 func testLexer() {
-	g1, errGrammar := grammar.FromFile("C:\\Users\\fabio\\dev\\github\\page\\examples\\HarbourPP.gp")
+	g1, errGrammar := grammar.FromFile("C:\\Users\\fabio\\temp\\HarbourPP.gp")
+	//g1, errGrammar := grammar.FromFile("C:\\Users\\fabio\\temp\\teste.gp")
 	if errGrammar != nil {
 		fmt.Print(errGrammar)
 		return
@@ -133,59 +134,112 @@ func testLexer() {
 		}
 		return
 	}
+	os.WriteFile("C:\\Users\\fabio\\temp\\harbour_pp_grammar.txt", []byte(w.String()), 0644)
 	nfa := vocabulary.RulesToNFA(lexerRules...)
-	w.WriteString("==================== NFA ======================\n")
+	w.Reset()
 	w.WriteString(nfa.String())
-	dfa := automata.NFAToDFA(nfa)
-	w.WriteString("==================== DFA ======================\n")
-	w.WriteString(dfa.String())
+	os.WriteFile("C:\\Users\\fabio\\temp\\harbour_pp_nfa.dot", []byte(w.String()), 0644)
 
-	//v := vocabulary.FromDFA(d)
-	v := vocabulary.FromGrammar(g1)
-	w.WriteString("==================== VOCABULARY ======================\n")
+	dfa := automata.NFAToDFA(nfa)
+	w.Reset()
+	w.WriteString(dfa.String())
+	os.WriteFile("C:\\Users\\fabio\\temp\\harbour_pp_dfa.dot", []byte(w.String()), 0644)
+
+	v := vocabulary.FromDFA(dfa)
+	//v := vocabulary.FromGrammar(g1)
+	w.Reset()
 	v.Write(w)
+	os.WriteFile("C:\\Users\\fabio\\temp\\harbour_pp_vocabulary.txt", []byte(w.String()), 0644)
 	w.NewLine()
-	w.WriteString("====================== SYNTAX ========================\n")
+
+	w.Reset()
 	s := syntax.FromGrammar(g1, v)
 	s.Write(w)
-
-	os.WriteFile("C:\\Users\\fabio\\temp\\teste.txt", []byte(w.String()), 0644)
+	os.WriteFile("C:\\Users\\fabio\\temp\\harbour_pp_syntax.txt", []byte(w.String()), 0644)
 
 	// i := input.NewStringInput("private function teste(a, b)\n {")
-	//i, inputErr := input.NewFileInput("C:\\Users\\fabio\\dev\\github\\sdbrdd\\sdb-med-lib\\src\\main\\clipper\\sdb_api_med.prg")
-	i, inputErr := input.NewFileInput("C:\\Users\\fabio\\temp\\teste.prg")
+	i, inputErr := input.NewFileInput("C:\\Users\\fabio\\temp\\sdb_api_med.prg")
+	//i, inputErr := input.NewFileInput("C:\\Users\\fabio\\temp\\teste.prg")
 	if inputErr != nil {
 		fmt.Print(inputErr)
 		return
 	}
 	l := lexer.New(v, i)
-	// d := automata.NFAToDFA(vocabulary.RulesToNFA(g.ParserRules()...))
+	saveTokens(l, v, i)
+	l.SetIndex(0)
+	//printTokens(l, v)
+	// d := automata.NFAToDFA(vocabulary.RulesToNFA(g1.ParserRules()...))
 	// fmt.Print(d.String())
 	p := parser.New(l, s)
 	ast := p.Execute()
 	if ast != nil {
-		printTree(ast, i, s, 0)
+		//printTree(ast, i, s, 0)
+		saveAST(ast, i, s, 0)
 	}
-	//printTokens(l, v)
 }
 
 func printTokens(l *lexer.Lexer, v *lexer.Vocabulary) {
 	fmt.Print("==================== TOKENS ======================\n")
-	// for _, token := range tokens {
-	// 	fmt.Printf("Row: %d, Col: %d, Types: %v\n", token.Row(), token.Col(), tokensNames(v, token))
-	// }
-	// for _, lexError := range l.Errors() {
-	// 	fmt.Printf("Error: %s\n", lexError)
-	// }
 	token, lexError := l.NextToken()
-	for token != nil && !token.IsType(lexer.TKN_EOF) {
+	for {
 		if lexError == nil {
 			fmt.Printf("Row: %d, Col: %d, Types: %v\n", token.Row(), token.Col(), tokensNames(v, token))
+			if token.IsType(lexer.TKN_EOF) {
+				break
+			}
 		} else {
 			fmt.Printf("Error: %s\n", lexError)
 		}
 		token, lexError = l.NextToken()
 	}
+}
+
+func saveTokens(l *lexer.Lexer, v *lexer.Vocabulary, i *input.FileInput) {
+	var str = strings.Builder{}
+	token, lexError := l.NextToken()
+	for {
+		if lexError == nil {
+			str.WriteString(fmt.Sprintf("Row: %d, Col: %d, Types: %v, Content: '%s'\n",
+				token.Row(),
+				token.Col(),
+				tokensNames(v, token),
+				i.GetText(token.Index(), token.Index()+token.Len())))
+			if token.IsType(lexer.TKN_EOF) {
+				break
+			}
+		} else {
+			str.WriteString(fmt.Sprintf("Error: %s\n", lexError))
+		}
+		token, lexError = l.NextToken()
+	}
+	os.WriteFile("C:\\Users\\fabio\\temp\\tokens.txt", []byte(str.String()), 0644)
+}
+
+func saveAST(node *ast.Node, in input.Input, s *parser.Syntax, i int) {
+	var str = strings.Builder{}
+	saveTree(&str, node, in, s, i)
+	os.WriteFile("C:\\Users\\fabio\\temp\\ast.txt", []byte(str.String()), 0644)
+}
+
+func saveTree(str *strings.Builder, node *ast.Node, in input.Input, s *parser.Syntax, i int) {
+	saveNode(str, node, in, s, i)
+	child := node.FirstChild()
+	for child != nil {
+		saveTree(str, child, in, s, i+1)
+		child = child.Sibling()
+	}
+}
+
+func saveNode(str *strings.Builder, node *ast.Node, in input.Input, s *parser.Syntax, i int) {
+	for range i {
+		str.WriteString("   ")
+	}
+	str.WriteString("[")
+	str.WriteString(s.RuleName(node.RuleType()))
+	str.WriteString("] : '")
+	str.WriteString(formatText(in.GetText(node.Start(), node.End())))
+	str.WriteString("'")
+	str.WriteRune('\n')
 }
 
 func printTree(node *ast.Node, in input.Input, s *parser.Syntax, i int) {

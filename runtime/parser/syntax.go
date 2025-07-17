@@ -5,12 +5,14 @@ import (
 )
 
 type ParserRuleType int
+type ParserRuleOption uint16
 
 type Syntax struct {
 	startRule       int
 	lastNonTerminal int
 	rulesNames      []string
 	rulesTable      [][]int
+	rulesOptions    []ParserRuleOption
 }
 
 const (
@@ -25,12 +27,19 @@ const (
 	NON_TERMINAL_RULE ParserRuleType = 8
 )
 
+const (
+	SKIP_NODE ParserRuleOption = 0x0001
+	MEMOIZE   ParserRuleOption = 0x0002
+	IGNORE    ParserRuleOption = 0x0004
+)
+
 func SyntaxNew(totalRules int, lastNonTerminal int) *Syntax {
 	return &Syntax{
 		startRule:       -1,
 		lastNonTerminal: lastNonTerminal,
 		rulesNames:      make([]string, totalRules),
 		rulesTable:      make([][]int, totalRules),
+		rulesOptions:    make([]ParserRuleOption, totalRules),
 	}
 }
 
@@ -69,6 +78,18 @@ func (s *Syntax) IsSubRule(index int) bool {
 
 func (s *Syntax) LastNonTerminal() int {
 	return s.lastNonTerminal
+}
+
+func (s *Syntax) SetOption(index int, option ParserRuleOption) {
+	s.rulesOptions[index] |= option
+}
+
+func (s *Syntax) Options(index int) ParserRuleOption {
+	return s.rulesOptions[index]
+}
+
+func (s *Syntax) HasOption(index int, option ParserRuleOption) bool {
+	return s.rulesOptions[index]&option != 0
 }
 
 func (s *Syntax) Write(writer *util.StringCodeWriter) {

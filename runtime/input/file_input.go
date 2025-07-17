@@ -76,6 +76,19 @@ func (f *FileInput) Index() int {
 	return f.index
 }
 
+func (i *FileInput) SetIndex(index int) {
+	if index > i.index {
+		for i.index < index {
+			if !i.Skip() {
+				return
+			}
+		}
+	} else if index >= 0 {
+		i.index = index
+		return
+	}
+}
+
 func (f *FileInput) Skip() bool {
 	if f.eof {
 		return false
@@ -103,5 +116,5 @@ func (f *FileInput) GetText(start int, end int) string {
 	if end > len(f.buffer) {
 		return ""
 	}
-	return string(f.buffer)[start:end]
+	return string(f.buffer[start:end])
 }

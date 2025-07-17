@@ -3,19 +3,21 @@ package lexer
 import (
 	"strings"
 
+	"github.com/fabiouggeri/page/build/rule"
 	"github.com/fabiouggeri/page/util"
 )
 
 type Vocabulary struct {
 	tokensNames      []string
+	tokensOptions    []int
 	transitionsTable [][]int
 	tokensTypes      [][]int
-	ignoredTypes     []int
 }
 
-func NewVocabulary(tokensNames []string, transitionsTable [][]int, tokensTypes [][]int) *Vocabulary {
+func NewVocabulary(tokensNames []string, tokensOptions []int, transitionsTable [][]int, tokensTypes [][]int) *Vocabulary {
 	return &Vocabulary{
 		tokensNames:      tokensNames,
+		tokensOptions:    tokensOptions,
 		transitionsTable: transitionsTable,
 		tokensTypes:      tokensTypes,
 	}
@@ -60,20 +62,12 @@ func (v *Vocabulary) TokenIndex(name string) int {
 	return -1
 }
 
-func (v *Vocabulary) Ignore(tokensTypes ...int) {
-	if v.ignoredTypes == nil {
-		v.ignoredTypes = make([]int, 0, len(tokensTypes))
-	}
-	v.ignoredTypes = append(v.ignoredTypes, tokensTypes...)
+func (v *Vocabulary) SetOption(tokenType int, option *rule.RuleOption) {
+	v.tokensOptions[tokenType] = v.tokensOptions[tokenType] | option.Code()
 }
 
-func (v *Vocabulary) IsIgnored(tokenType int) bool {
-	for _, t := range v.ignoredTypes {
-		if t == tokenType {
-			return true
-		}
-	}
-	return false
+func (v *Vocabulary) HasOption(tokenType int, option *rule.RuleOption) bool {
+	return v.tokensOptions[tokenType]&option.Code() != 0
 }
 
 func (v *Vocabulary) Write(writer util.TextWriter) {
@@ -145,4 +139,27 @@ func (v *Vocabulary) writeSymbol(writer util.TextWriter, symbol rune) {
 	} else {
 		writer.WriteF(" '%c'", symbol)
 	}
+}
+
+func (v *Vocabulary) IsFinalState(state int) bool {
+	if state > 0 && state < len(v.transitionsTable) {
+		return len(v.tokensTypes[state]) > 0
+	}
+	return false
+}
+
+func (v *Vocabulary) AllTokensTypesHasOption(state int, option *rule.RuleOption) bool {
+	if state < 0 || state >= len(v.transitionsTable) {
+		return false
+	}
+	for _, tokenType := range v.tokensTypes[state] {
+		if v.tokensOptions[tokenType]&option.Code() == 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func (v *Vocabulary) HasOptions(tokenType int) bool {
+	return v.tokensOptions[tokenType] != 0
 }

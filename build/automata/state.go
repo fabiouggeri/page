@@ -189,6 +189,8 @@ func charToLabel(str *strings.Builder, c rune) {
 		str.WriteString("\\\"")
 	case '\\':
 		str.WriteString("\\\\")
+	case EPSILON:
+		str.WriteRune('€')
 	case ANY:
 		str.WriteString("...")
 	default:

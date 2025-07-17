@@ -1,20 +1,31 @@
 package lexer
 
 import (
+	"github.com/fabiouggeri/page/build/rule"
 	"github.com/fabiouggeri/page/runtime/error"
 	"github.com/fabiouggeri/page/runtime/input"
 )
 
 type Lexer struct {
-	vocabulary *Vocabulary
-	input      input.Input
-	lastChar   rune
-	index      int
-	row        int
-	col        int
-	errors     []error.Error
-	tokens     []*Token
-	eof        bool
+	vocabulary  *Vocabulary
+	input       input.Input
+	index       int
+	row         int
+	col         int
+	tokensLine  int
+	errors      []error.Error
+	tokens      []*Token
+	eof         bool
+	onlyIgnored bool
+}
+
+type lexerState struct {
+	index       int
+	state       int
+	row         int
+	col         int
+	tokensLine  int
+	onlyIgnored bool
 }
 
 const TKN_EOF = 0
@@ -23,7 +34,6 @@ func New(vocabulary *Vocabulary, input input.Input) *Lexer {
 	return &Lexer{
 		vocabulary: vocabulary,
 		input:      input,
-		lastChar:   '\x00',
 		index:      0,
 		row:        1,
 		col:        1,
@@ -112,49 +122,111 @@ func (l *Lexer) NextToken() (*Token, error.Error) {
 }
 
 func (l *Lexer) readNextToken() (*Token, error.Error) {
+	var lastValidState *lexerState
 	col := l.col
 	row := l.row
-	tokenLen := 0
 	state := 0
 	transitionsTable := l.vocabulary.TransitionsTable()
 	start := l.input.Index()
 	for {
 		var nextState int
 		c := l.input.GetChar()
-		if c == '\x00' {
-			if state == 0 {
-				return nil, l.error(LEX_ERROR_EOF, start, l.row, l.col, "Unexpected end of file")
-			}
-			return &Token{index: start, len: tokenLen, row: row, col: col, types: l.vocabulary.TokenTypes(state)}, nil
-		}
+
 		if int(c) >= len(transitionsTable[state]) {
 			nextState = transitionsTable[state][0]
-			if nextState == 0 {
-				l.skipChar(c)
-				return nil, l.error(LEX_ERROR_INVALID_CHAR, start, l.row, l.col, "Invalid character '%c'", c)
-			}
-		} else {
+		} else if int(c) > 0 {
 			nextState = transitionsTable[state][c]
+		} else if state == 0 {
+			return nil, l.error(LEX_ERROR_EOF, start, l.row, l.col, "Unexpected end of file")
+		} else if tt := l.validTokensTypes(state); len(tt) > 0 {
+			if l.row > row {
+				l.onlyIgnored = true
+				l.tokensLine = 0
+			} else {
+				l.onlyIgnored = l.onlyIgnored && l.onlyIgnoredTypes(tt)
+				l.tokensLine++
+			}
+			return &Token{index: start, len: l.input.Index() - start, row: row, col: col, types: tt}, nil
 		}
 		if nextState == 0 {
-			if state == 0 {
+			tt := l.validTokensTypes(state)
+			if len(tt) == 0 {
+				// has a previous valid state, return it
+				if lastValidState != nil {
+					tt := l.validTokensTypes(lastValidState.state)
+					l.input.SetIndex(lastValidState.index + 1)
+					l.tokensLine = lastValidState.tokensLine
+					l.onlyIgnored = lastValidState.onlyIgnored
+					l.row = lastValidState.row
+					l.col = lastValidState.col
+					return &Token{index: start, len: l.input.Index() - start, row: row, col: col, types: tt}, nil
+				}
 				l.skipChar(c)
 				return nil, l.error(LEX_ERROR_INVALID_CHAR, start, l.row, l.col, "Invalid character '%c'", c)
 			}
-			return &Token{index: start, len: tokenLen, row: row, col: col, types: l.vocabulary.TokenTypes(state)}, nil
+			if l.row > row {
+				l.onlyIgnored = true
+				l.tokensLine = 0
+			} else {
+				l.onlyIgnored = l.onlyIgnored && l.onlyIgnoredTypes(tt)
+				l.tokensLine++
+			}
+			return &Token{index: start, len: l.input.Index() - start, row: row, col: col, types: tt}, nil
 		}
 		state = nextState
-		l.lastChar = c
 		l.skipChar(c)
-		tokenLen++
+		// store the last valid state if it is a final state
+		if l.vocabulary.IsFinalState(state) && !l.vocabulary.AllTokensTypesHasOption(state, rule.IGNORE) {
+			lastValidState = &lexerState{
+				index:       start,
+				state:       state,
+				row:         l.row,
+				col:         l.col,
+				tokensLine:  l.tokensLine,
+				onlyIgnored: l.onlyIgnored,
+			}
+		}
 	}
 }
 
+func (l *Lexer) validTokensTypes(state int) []int {
+	tokensTypes := l.vocabulary.TokenTypes(state)
+	validTokens := make([]int, 0, len(tokensTypes))
+	for _, tokenType := range tokensTypes {
+		if !l.vocabulary.HasOptions(tokenType) {
+			validTokens = append(validTokens, tokenType)
+		} else if l.vocabulary.HasOption(tokenType, rule.START_LINE) {
+			if l.tokensLine == 0 {
+				validTokens = append(validTokens, tokenType)
+			}
+		} else if l.vocabulary.HasOption(tokenType, rule.ONLY_IGNORED) {
+			if l.onlyIgnored {
+				validTokens = append(validTokens, tokenType)
+			}
+		} else {
+			validTokens = append(validTokens, tokenType)
+		}
+	}
+	return validTokens
+}
+
+func (l *Lexer) onlyIgnoredTypes(tokenTypes []int) bool {
+	for _, t := range tokenTypes {
+		if !l.vocabulary.HasOption(t, rule.IGNORE) {
+			return false
+		}
+	}
+	return true
+}
+
 func (l *Lexer) skipChar(c rune) {
-	if c == '\n' {
+	switch c {
+	case '\n':
 		l.row++
 		l.col = 1
-	} else if c != '\n' {
+	case '\r':
+		// do nothing
+	default:
 		l.col++
 	}
 	l.input.Skip()
@@ -168,7 +240,7 @@ func (l *Lexer) error(code int, index int, row int, col int, message string, arg
 
 func (l *Lexer) IsIgnored(tkn *Token) bool {
 	for _, tt := range tkn.types {
-		if l.vocabulary.IsIgnored(tt) {
+		if l.vocabulary.HasOption(tt, rule.IGNORE) {
 			return true
 		}
 	}

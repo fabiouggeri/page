@@ -9,30 +9,25 @@ import (
 )
 
 type vocabularyBuilder struct {
-	maxSymbol   rune
-	tokensTypes *util.Set[string]
-	tokensMap   map[string]int
-	dfa         *automata.State
+	maxSymbol     rune
+	tokensTypes   *util.Set[string]
+	tokensOptions map[string]*util.Set[*rule.RuleOption]
+	tokensMap     map[string]int
+	dfa           *automata.State
 }
 
 func FromGrammar(grammar *grammar.Grammar) *runtime.Vocabulary {
 	rules := grammar.LexerRules()
-	v := FromDFA(automata.NFAToDFA(RulesToNFA(rules...)))
-	for tokenIndex, tokenName := range v.TokensNames() {
-		r := grammar.GetRule(tokenName)
-		if r != nil && r.HasOption(rule.IGNORE) {
-			v.Ignore(tokenIndex)
-		}
-	}
-	return v
+	return FromDFA(automata.NFAToDFA(RulesToNFA(rules...)))
 }
 
 func FromDFA(dfa *automata.State) *runtime.Vocabulary {
 	vb := &vocabularyBuilder{
-		maxSymbol:   rune(0),
-		tokensTypes: util.NewSet[string](),
-		tokensMap:   make(map[string]int),
-		dfa:         dfa,
+		maxSymbol:     rune(0),
+		tokensTypes:   util.NewSet[string](),
+		tokensOptions: make(map[string]*util.Set[*rule.RuleOption]),
+		tokensMap:     make(map[string]int),
+		dfa:           dfa,
 	}
 	return vb.build()
 }
@@ -40,24 +35,33 @@ func FromDFA(dfa *automata.State) *runtime.Vocabulary {
 func (vb *vocabularyBuilder) build() *runtime.Vocabulary {
 	vb.dfa.WalkThrough(vb.visitState, func(souce *automata.State, char rune, target *automata.State) bool { return true })
 	tokenId := 1
-	tokensNames := make([]string, 0, vb.dfa.RulesTypesCount())
 	tokensTypes := vb.tokensTypes.Items()
+	tokensNames := make([]string, 0, len(tokensTypes)+1)
+	tokensOptions := make([]int, 0, cap(tokensNames))
 	tokensNames = append(tokensNames, "EOI")
+	tokensOptions = append(tokensOptions, 0)
 	vb.tokensMap["EOI"] = 0
 	for _, tokenType := range tokensTypes {
 		if tokenType != "EOI" {
 			tokensNames = append(tokensNames, tokenType)
+			optionsSet := 0
+			if options, found := vb.tokensOptions[tokenType]; found {
+				for _, option := range options.Items() {
+					optionsSet |= option.Code()
+				}
+			}
+			tokensOptions = append(tokensOptions, optionsSet)
 			vb.tokensMap[tokenType] = tokenId
 			tokenId++
 		}
 	}
-	v := runtime.NewVocabulary(tokensNames, vb.buildTransitionTable(), vb.buildTokensTable())
-	return v
+	return runtime.NewVocabulary(tokensNames, tokensOptions, vb.buildTransitionTable(), vb.buildTokensTable())
 }
 
 func (vb *vocabularyBuilder) visitState(state *automata.State) bool {
 	for _, tt := range state.RulesTypes() {
 		vb.tokensTypes.Add(tt.Name())
+		vb.addTokenOptions(tt.Name(), tt.Rule().Options()...)
 	}
 	for _, symbol := range state.Symbols() {
 		if symbol > vb.maxSymbol && symbol != automata.ANY {
@@ -65,6 +69,15 @@ func (vb *vocabularyBuilder) visitState(state *automata.State) bool {
 		}
 	}
 	return true
+}
+
+func (vb *vocabularyBuilder) addTokenOptions(tokenName string, optionsToSet ...*rule.RuleOption) {
+	options, found := vb.tokensOptions[tokenName]
+	if !found {
+		options = util.NewSet[*rule.RuleOption]()
+		vb.tokensOptions[tokenName] = options
+	}
+	options.AddAll(optionsToSet...)
 }
 
 func (vb *vocabularyBuilder) buildTransitionTable() [][]int {

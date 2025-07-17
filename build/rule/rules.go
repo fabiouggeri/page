@@ -126,7 +126,3 @@ func Test(rule Rule) *TestRule {
 func Not(rule Rule) *NotRule {
 	return &NotRule{rule: rule}
 }
-
-func Parse(text string) Rule {
-	return nil
-}

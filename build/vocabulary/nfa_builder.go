@@ -35,6 +35,7 @@ func RulesToNFA(rules ...*rule.NonTerminalRule) *automata.State {
 			finalState.AddRuleType(ruleType)
 		}
 		state.SetInitial(false)
+
 		s1.AddTransitions(automata.EPSILON, state)
 	}
 	return s1
@@ -288,7 +289,7 @@ func (n *nfaVisitor) negateTransitions(state *automata.State) {
 				if found {
 					allSymbols.Add(sym)
 				} else {
-					targetsMap[target] = util.NewSet[automata.Symbol](sym)
+					targetsMap[target] = util.NewSet(sym)
 				}
 			}
 		}

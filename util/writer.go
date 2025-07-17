@@ -14,6 +14,7 @@ type TextWriter interface {
 	HasError() bool
 	Error() error
 	CleanError()
+	Reset() TextWriter
 	String() string
 }
 
@@ -28,6 +29,14 @@ var _ TextWriter = &StringCodeWriter{}
 
 func NewStringTextWriter() *StringCodeWriter {
 	return &StringCodeWriter{indentation: 0, newLine: true, err: nil}
+}
+
+func (w *StringCodeWriter) Reset() TextWriter {
+	w.text.Reset()
+	w.indentation = 0
+	w.newLine = true
+	w.err = nil
+	return w
 }
 
 func (w *StringCodeWriter) indentIfNewLine() bool {

@@ -11,6 +11,7 @@ type Parser struct {
 	syntax      *Syntax
 	currentNode *ast.Node
 	errors      []error.Error
+	ignore      bool
 }
 
 func New(l *lexer.Lexer, s *Syntax) *Parser {
@@ -18,6 +19,7 @@ func New(l *lexer.Lexer, s *Syntax) *Parser {
 		lexer:  l,
 		syntax: s,
 		errors: make([]error.Error, 0),
+		ignore: false,
 	}
 }
 
@@ -38,6 +40,11 @@ func (p *Parser) Errors() []error.Error {
 }
 
 func (p *Parser) parseRule(ruleId int) bool {
+	previousIgnore := p.ignore
+	if p.syntax.HasOption(ruleId, IGNORE) {
+		p.ignore = true
+	}
+	//fmt.Printf("Rule (%d, %d): %s\n", p.lexer.Row(), p.lexer.Col(), p.syntax.rulesNames[ruleId])
 	lastNode := p.currentNode
 	index := p.lexer.Index()
 	match := false
@@ -65,9 +72,10 @@ func (p *Parser) parseRule(ruleId int) bool {
 	default:
 		panic("undefined rule type")
 	}
-	if match && !p.syntax.IsSubRule(ruleId) {
+	if match && !p.syntax.IsSubRule(ruleId) && !p.syntax.HasOption(ruleId, SKIP_NODE) && !p.ignore {
 		p.createNode(ruleId, index, lastNode)
 	}
+	p.ignore = previousIgnore
 	return match
 }
 

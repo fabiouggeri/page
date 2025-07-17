@@ -372,9 +372,9 @@ func (l *grammarParser) simpleRule() (rule.Rule, error) {
 		currentRule, err = l.groupedRule()
 	case '[':
 		currentRule, err = l.charRangeRule()
-	// case '.':
-	// 	currentRule = rule.NewAnyCharRule()
-	// 	l.advanceIndex()
+		// case '.':
+		// 	currentRule = rule.AnyCharRule()
+		// 	l.advanceIndex()
 	default:
 		if unicode.IsLetter(c) {
 			currentRule = l.identifierRule()
@@ -670,6 +670,9 @@ func (l *grammarParser) optionEntry() error {
 }
 
 func (l *grammarParser) currentChar() rune {
+	if l.index >= len(l.buffer) {
+		return rune(0) // EOF
+	}
 	r := rune(l.buffer[l.index])
 	if r >= utf8.RuneSelf {
 		r, _ = utf8.DecodeRune(l.buffer[l.index:])

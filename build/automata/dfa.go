@@ -12,6 +12,17 @@ type dfaState struct {
 	transitions map[rune]*util.Set[*State]
 }
 
+// NFAToDFA converts a non-deterministic finite automaton (NFA) represented by its start state
+// to a deterministic finite automaton (DFA), also represented by its start state.
+//
+// The conversion process involves the following steps:
+// 1. Determine all symbols used in the NFA.
+// 2. Create the initial DFA state from the epsilon closure of the NFA's start state.
+// 3. Iteratively build DFA states and their transitions based on the NFA's transition function and symbols.
+// 4. Construct the complete DFA from the generated DFA states.
+// 5. Minimize the DFA to reduce the number of states while preserving its language recognition capability.
+//
+// The function returns the start state of the minimized DFA.
 func NFAToDFA(state *State) *State {
 	allSymbols := state.AllSymbols()
 	dfaStates := make([]*dfaState, 0)
@@ -20,13 +31,16 @@ func NFAToDFA(state *State) *State {
 		dfaState := dfaStates[i]
 		dfaStates = buildDFATransitions(dfaStates, allSymbols, dfaState)
 	}
-	return minimizeDFA(buildDFA(dfaStates))
+	dfa := buildDFA(dfaStates)
+	return minimizeDFA(dfa)
 }
 
 func buildDFATransitions(dfaStates []*dfaState, allSymbols []rune, dfaState *dfaState) []*dfaState {
 	// percorre os estados NFA do novo estado DFA
 	for _, nfaState := range dfaState.nfaStates.Items() {
-		dfaStates = addNFATransitions(dfaStates, allSymbols, dfaState, nfaState)
+		for _, symbol := range allSymbols {
+			addSymbolTargets(dfaState, nfaState, symbol)
+		}
 	}
 	for _, dfaTransition := range dfaState.transitions {
 		if !foundDFAState(dfaStates, dfaTransition) {
@@ -36,21 +50,26 @@ func buildDFATransitions(dfaStates []*dfaState, allSymbols []rune, dfaState *dfa
 	return dfaStates
 }
 
-func addNFATransitions(dfaStates []*dfaState, allSymbols []rune, dfaState *dfaState, nfaState *State) []*dfaState {
-	dfaState.initial = dfaState.initial || nfaState.initial
-	dfaState.final = dfaState.final || nfaState.final
-	for _, symbol := range allSymbols {
-		targets := nfaState.Targets(symbol)
-		if targets.Length() > 0 {
-			dfaTransition, found := dfaState.transitions[symbol]
-			if !found {
-				dfaTransition = util.NewSet[*State]()
-				dfaState.transitions[symbol] = dfaTransition
-			}
-			dfaTransition.AddAll(targets.Items()...)
-		}
+func addSymbolTargets(dfaState *dfaState, nfaState *State, symbol rune) {
+	if nfaState.initial {
+		dfaState.initial = true
 	}
-	return dfaStates
+	if nfaState.final {
+		dfaState.final = true
+	}
+	targets := util.NewSet[*State]()
+	symbolTargets := nfaState.Targets(symbol)
+	for _, target := range symbolTargets.Items() {
+		targets.AddAll(target.EpsilonClosures().Items()...)
+	}
+	if targets.Length() > 0 {
+		dfaTransition, found := dfaState.transitions[symbol]
+		if !found {
+			dfaTransition = util.NewSet[*State]()
+			dfaState.transitions[symbol] = dfaTransition
+		}
+		dfaTransition.AddAll(targets.Items()...)
+	}
 }
 
 func newDFAState(nfaStates *util.Set[*State]) *dfaState {
@@ -114,6 +133,7 @@ func minimizeDFA(state *State) *State {
 	slices.SortFunc(allStates, func(a, b *State) int { return int(a.id - b.id) })
 
 	statesTable := buildStatesTable(allStates)
+	markPairStates(statesTable, allStates)
 	checkUnmarkedPairs(statesTable, allStates, allSymbols)
 	return combineUnmarkedStates(statesTable, allStates)
 }
@@ -122,11 +142,11 @@ func combineUnmarkedStates(statesTable [][]bool, allStates []*State) *State {
 	var initialState *State
 	nextId := int32(0)
 	newStates := make(map[int]*State)
-	for s1Id := range statesTable {
+	for s1Id := 1; s1Id < len(statesTable); s1Id++ {
 		s1 := allStates[s1Id]
 		combine := false
 		row := statesTable[s1Id]
-		for s2Id := s1Id + 1; s2Id < len(row); s2Id++ {
+		for s2Id := 0; s2Id < s1Id; s2Id++ {
 			if !row[s2Id] {
 				combine = true
 				s2 := allStates[s2Id]
@@ -162,11 +182,16 @@ func combineUnmarkedStates(statesTable [][]bool, allStates []*State) *State {
 }
 
 func checkUnmarkedPairs(statesTable [][]bool, allStates []*State, allSymbols []Symbol) {
-	for s1Id := range statesTable {
-		row := statesTable[s1Id]
-		for s2Id := s1Id + 1; s2Id < len(row); s2Id++ {
-			if !row[s2Id] {
-				row[s2Id] = markState(statesTable, allStates, s1Id, s2Id, allSymbols)
+	repeat := true
+	for repeat {
+		repeat = false
+		for s1Id := 1; s1Id < len(statesTable); s1Id++ {
+			row := statesTable[s1Id]
+			for s2Id := 0; s2Id < s1Id; s2Id++ {
+				if !row[s2Id] && markState(statesTable, allStates, s1Id, s2Id, allSymbols) {
+					row[s2Id] = true
+					repeat = true
+				}
 			}
 		}
 	}
@@ -194,13 +219,16 @@ func buildStatesTable(allStates []*State) [][]bool {
 	for row := range statesTable {
 		statesTable[row] = make([]bool, len(allStates))
 	}
-	for s1Id := range statesTable {
+	return statesTable
+}
+
+func markPairStates(statesTable [][]bool, allStates []*State) {
+	for s1Id := 1; s1Id < len(statesTable); s1Id++ {
 		row := statesTable[s1Id]
-		for s2Id := s1Id + 1; s2Id < len(row); s2Id++ {
+		for s2Id := 0; s2Id < s1Id; s2Id++ {
 			s1 := allStates[s1Id]
 			s2 := allStates[s2Id]
 			row[s2Id] = s1.final && !s2.final
 		}
 	}
-	return statesTable
 }

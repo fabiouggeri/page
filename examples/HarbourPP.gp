@@ -24,13 +24,23 @@ TimePattern : IntegerNumber (':' IntegerNumber (':' IntegerNumber)? ('.' Integer
 @Fragment
 DatePattern : IntegerNumber ('-' | '/' | '.') IntegerNumber ('-' | '/' | '.') IntegerNumber;
 
+@Fragment
+BlockCommentPattern: '/*' ('*'! | ('*' '/'!))* '*/';
+
+@Fragment
+Space : ' ' | '\t' | '\f';
+
+@OnlyIgnoredInLine
+@Ignore
+AloneLineComment : '*' ('\n' | EOI)!*;
+
 NewLine : '\n' | '\r\n';
 
 @Ignore
-Whitespace : (' ' | '\t' | '\f')+;
+Whitespace : Space+;
 
 @Ignore
-BlockComment : '/*' ('*'! | ('*' '/'!))* '*/';
+BlockComment : BlockCommentPattern;
 
 @Ignore
 LineComment : ('//' | '&&') ('\n' | EOI)!*;
@@ -109,7 +119,8 @@ XTranslate : "xtranslate":4;
 Statements : (Statement) (NewLine Statement?)*;
 
 @SkipNode
-Statement : DirectiveStatement | AloneLineComment | AnyStatement;
+Statement : ( DirectiveStatement 
+            | AnyStatement ) EndStmt;
 
 EndStmt : NewLine | EOI;
 
@@ -143,9 +154,6 @@ DirectiveStatement : '#'
 // EmptyStatement : NewLine;
 
 AnyStatement : AnyRules;
-
-@Ignore
-AloneLineComment : '*' AnyRule*;
 
 @SkipNode
 AnyRules : AnyRule+;
