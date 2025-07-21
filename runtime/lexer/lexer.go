@@ -44,6 +44,10 @@ func (l *Lexer) Errors() []error.Error {
 	return l.errors
 }
 
+func (l *Lexer) Input() input.Input {
+	return l.input
+}
+
 func (l *Lexer) Index() int {
 	return l.index
 }

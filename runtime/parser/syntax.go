@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"strings"
+
 	"github.com/fabiouggeri/page/util"
 )
 
@@ -70,6 +72,15 @@ func (s *Syntax) Subrules(index int) []int {
 
 func (s *Syntax) RuleName(index int) string {
 	return s.rulesNames[index]
+}
+
+func (s *Syntax) RuleId(name string) int {
+	for i, ruleName := range s.rulesNames {
+		if strings.EqualFold(ruleName, name) {
+			return i
+		}
+	}
+	return -1
 }
 
 func (s *Syntax) IsSubRule(index int) bool {

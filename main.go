@@ -10,10 +10,10 @@ import (
 	"github.com/fabiouggeri/page/build/rule"
 	"github.com/fabiouggeri/page/build/syntax"
 	"github.com/fabiouggeri/page/build/vocabulary"
-	"github.com/fabiouggeri/page/runtime/ast"
 	"github.com/fabiouggeri/page/runtime/input"
 	"github.com/fabiouggeri/page/runtime/lexer"
 	"github.com/fabiouggeri/page/runtime/parser"
+	"github.com/fabiouggeri/page/runtime/visitor"
 	"github.com/fabiouggeri/page/util"
 )
 
@@ -153,28 +153,42 @@ func testLexer() {
 	w.NewLine()
 
 	w.Reset()
-	s := syntax.FromGrammar(g1, v)
-	s.Write(w)
+	syntax := syntax.FromGrammar(g1, v)
+	syntax.Write(w)
 	os.WriteFile("C:\\Users\\fabio\\temp\\harbour_pp_syntax.txt", []byte(w.String()), 0644)
 
-	// i := input.NewStringInput("private function teste(a, b)\n {")
-	i, inputErr := input.NewFileInput("C:\\Users\\fabio\\temp\\sdb_api_med.prg")
+	// input := input.NewStringInput("private function teste(a, b)\n {")
+	input, inputErr := input.NewFileInput("C:\\Users\\fabio\\temp\\sdb_api_med.prg")
 	//i, inputErr := input.NewFileInput("C:\\Users\\fabio\\temp\\teste.prg")
 	if inputErr != nil {
 		fmt.Print(inputErr)
 		return
 	}
-	l := lexer.New(v, i)
-	saveTokens(l, v, i)
-	l.SetIndex(0)
+	lex := lexer.New(v, input)
+	saveTokens(lex, v, input)
+	lex.SetIndex(0)
 	//printTokens(l, v)
 	// d := automata.NFAToDFA(vocabulary.RulesToNFA(g1.ParserRules()...))
 	// fmt.Print(d.String())
-	p := parser.New(l, s)
-	ast := p.Execute()
-	if ast != nil {
+	p := parser.New(lex, syntax)
+	rootNode := p.Execute()
+	if rootNode != nil {
 		//printTree(ast, i, s, 0)
-		saveAST(ast, i, s, 0)
+		saveAST(rootNode, p, 0)
+		nodeVisitor := visitor.New(syntax)
+		nodeVisitor.EnterRuleName("AnyStatement", func(parser *parser.Parser, node *parser.ASTNode) {
+			row, col := parser.Position(node)
+			fmt.Printf("Enter(%d, %d): %s\n", row, col, parser.NodeText(node))
+		})
+		nodeVisitor.ExitRuleName("AnyStatement", func(parser *parser.Parser, node *parser.ASTNode) {
+			row, col := parser.Position(node)
+			fmt.Printf("Exit(%d, %d): %s\n", row, col, parser.NodeText(node))
+		})
+		visitor.NewWalker(p, nodeVisitor).Walk(rootNode)
+		node := rootNode.Find(syntax, "Statement/IncludeDirective")
+		fmt.Printf("Found node: %v\n", node)
+		nodes := rootNode.List(syntax, "Statement/IncludeDirective")
+		fmt.Printf("Found node: %v\n", nodes)
 	}
 }
 
@@ -215,34 +229,39 @@ func saveTokens(l *lexer.Lexer, v *lexer.Vocabulary, i *input.FileInput) {
 	os.WriteFile("C:\\Users\\fabio\\temp\\tokens.txt", []byte(str.String()), 0644)
 }
 
-func saveAST(node *ast.Node, in input.Input, s *parser.Syntax, i int) {
+func saveAST(node *parser.ASTNode, parser *parser.Parser, i int) {
 	var str = strings.Builder{}
-	saveTree(&str, node, in, s, i)
+	saveTree(&str, node, parser, i)
 	os.WriteFile("C:\\Users\\fabio\\temp\\ast.txt", []byte(str.String()), 0644)
 }
 
-func saveTree(str *strings.Builder, node *ast.Node, in input.Input, s *parser.Syntax, i int) {
-	saveNode(str, node, in, s, i)
+func saveTree(str *strings.Builder, node *parser.ASTNode, parser *parser.Parser, i int) {
+	saveNode(str, node, parser, i)
 	child := node.FirstChild()
 	for child != nil {
-		saveTree(str, child, in, s, i+1)
+		saveTree(str, child, parser, i+1)
 		child = child.Sibling()
 	}
 }
 
-func saveNode(str *strings.Builder, node *ast.Node, in input.Input, s *parser.Syntax, i int) {
+func saveNode(str *strings.Builder, node *parser.ASTNode, parser *parser.Parser, i int) {
 	for range i {
 		str.WriteString("   ")
 	}
 	str.WriteString("[")
-	str.WriteString(s.RuleName(node.RuleType()))
+	str.WriteString(parser.Syntax().RuleName(node.RuleType()))
 	str.WriteString("] : '")
-	str.WriteString(formatText(in.GetText(node.Start(), node.End())))
+	startToken, endToken := parser.NodeTokens(node)
+	if startToken == nil || endToken == nil {
+		fmt.Printf("Error getting tokens for node: %v\n", node)
+		return
+	}
+	str.WriteString(formatText(parser.Lexer().Input().GetText(startToken.Index(), endToken.Index()+endToken.Len())))
 	str.WriteString("'")
 	str.WriteRune('\n')
 }
 
-func printTree(node *ast.Node, in input.Input, s *parser.Syntax, i int) {
+func printTree(node *parser.ASTNode, in input.Input, s *parser.Syntax, i int) {
 	printNode(node, in, s, i)
 	child := node.FirstChild()
 	for child != nil {
@@ -251,14 +270,14 @@ func printTree(node *ast.Node, in input.Input, s *parser.Syntax, i int) {
 	}
 }
 
-func printNode(node *ast.Node, in input.Input, s *parser.Syntax, i int) {
+func printNode(node *parser.ASTNode, in input.Input, s *parser.Syntax, i int) {
 	for range i {
 		fmt.Print("   ")
 	}
 	fmt.Print("[")
 	fmt.Print(s.RuleName(node.RuleType()))
 	fmt.Print("] : '")
-	fmt.Print(formatText(in.GetText(node.Start(), node.End())))
+	fmt.Print(formatText(in.GetText(node.StartToken(), node.EndToken())))
 	fmt.Println("'")
 }
 

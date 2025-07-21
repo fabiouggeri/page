@@ -1,34 +1,49 @@
 package parser
 
 import (
-	"github.com/fabiouggeri/page/runtime/ast"
 	"github.com/fabiouggeri/page/runtime/error"
 	"github.com/fabiouggeri/page/runtime/lexer"
 )
 
+type memorizedRule struct {
+	node  *ASTNode
+	start int
+	end   int
+}
+
 type Parser struct {
 	lexer       *lexer.Lexer
 	syntax      *Syntax
-	currentNode *ast.Node
+	currentNode *ASTNode
 	errors      []error.Error
+	memorized   []*memorizedRule
 	ignore      bool
 }
 
 func New(l *lexer.Lexer, s *Syntax) *Parser {
 	return &Parser{
-		lexer:  l,
-		syntax: s,
-		errors: make([]error.Error, 0),
-		ignore: false,
+		lexer:     l,
+		syntax:    s,
+		errors:    make([]error.Error, 0),
+		memorized: make([]*memorizedRule, len(s.rulesNames)),
+		ignore:    false,
 	}
 }
 
-func (p *Parser) Execute() *ast.Node {
+func (p *Parser) Lexer() *lexer.Lexer {
+	return p.lexer
+}
+
+func (p *Parser) Syntax() *Syntax {
+	return p.syntax
+}
+
+func (p *Parser) Execute() *ASTNode {
 	startRule := p.syntax.StartRule()
 	if startRule < 0 || startRule >= p.syntax.RulesCount() {
 		panic("undefined start rule")
 	}
-	p.currentNode = ast.NewNode(-1, 0, 0)
+	p.currentNode = NewASTNode(-1, 0, 0)
 	if p.parseRule(startRule) {
 		return p.currentNode
 	}
@@ -49,6 +64,15 @@ func (p *Parser) parseRule(ruleId int) bool {
 	index := p.lexer.Index()
 	match := false
 	//row, col := p.lexer.Row(), p.lexer.Col()
+	mem := p.memorized[ruleId]
+	if mem != nil && mem.start == index {
+		if mem.start <= mem.end {
+			p.lexer.SetIndex(mem.end)
+			return true
+		} else {
+			return false
+		}
+	}
 	rules := p.syntax.Subrules(ruleId)
 	switch ParserRuleType(rules[0]) {
 	case AND_RULE:
@@ -72,19 +96,32 @@ func (p *Parser) parseRule(ruleId int) bool {
 	default:
 		panic("undefined rule type")
 	}
-	if match && !p.syntax.IsSubRule(ruleId) && !p.syntax.HasOption(ruleId, SKIP_NODE) && !p.ignore {
+	if match && !p.ignore && !p.syntax.IsSubRule(ruleId) && !p.syntax.HasOption(ruleId, SKIP_NODE) {
 		p.createNode(ruleId, index, lastNode)
+	} else if mem != nil {
+		mem.start = index
+		mem.end = -1
+		mem.node = nil
 	}
 	p.ignore = previousIgnore
 	return match
 }
 
-func (p *Parser) createNode(ruleId int, index int, lastNode *ast.Node) {
-	startTkn, _ := p.lexer.Token(index)
-	endTkn, _ := p.lexer.Token(p.lexer.Index() - 1)
-	p.currentNode = ast.NewNode(ruleId, startTkn.Index(), endTkn.Index()+endTkn.Len())
+func (p *Parser) createNode(ruleId int, index int, lastNode *ASTNode) {
+	p.currentNode = NewASTNode(ruleId, index, p.lexer.Index()-1)
 	p.currentNode.SetFirstChild(lastNode.Sibling())
 	lastNode.SetSibling(p.currentNode)
+	if p.memorized[ruleId] == nil {
+		p.memorized[ruleId] = &memorizedRule{
+			node:  p.currentNode,
+			start: index,
+			end:   p.lexer.Index(),
+		}
+	} else {
+		p.memorized[ruleId].node = p.currentNode
+		p.memorized[ruleId].start = index
+		p.memorized[ruleId].end = p.lexer.Index()
+	}
 }
 
 func (p *Parser) parseAndRule(rules []int) bool {
@@ -204,4 +241,26 @@ func (p *Parser) Error(errorCode int, row int, col int, message string) {
 		message: message,
 	}
 	p.errors = append(p.errors, err)
+}
+
+func (p *Parser) NodeTokens(node *ASTNode) (*lexer.Token, *lexer.Token) {
+	startToken, _ := p.lexer.Token(node.StartToken())
+	endToken, _ := p.lexer.Token(node.EndToken())
+	return startToken, endToken
+}
+
+func (p *Parser) NodeText(node *ASTNode) string {
+	startToken, endToken := p.NodeTokens(node)
+	if startToken == nil || endToken == nil {
+		return ""
+	}
+	return p.lexer.Input().GetText(startToken.Index(), endToken.Index()+endToken.Len())
+}
+
+func (p *Parser) Position(node *ASTNode) (int, int) {
+	token, _ := p.lexer.Token(node.StartToken())
+	if token == nil {
+		return 0, 0
+	}
+	return token.Row(), token.Col()
 }
