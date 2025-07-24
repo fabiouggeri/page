@@ -42,6 +42,16 @@ func (n *ASTNode) FirstChild() *ASTNode {
 	return n.firstChild
 }
 
+func (n *ASTNode) Children() []*ASTNode {
+	children := make([]*ASTNode, 0)
+	child := n.firstChild
+	for child != nil {
+		children = append(children, child)
+		child = child.sibling
+	}
+	return children
+}
+
 func (n *ASTNode) SetFirstChild(firstChild *ASTNode) {
 	n.firstChild = firstChild
 }

@@ -85,8 +85,8 @@ func (v *Vocabulary) writeTokensNames(writer util.TextWriter) {
 		return
 	}
 	writer.Indent(3)
-	for _, t := range v.tokensNames {
-		writer.WriteString(t).NewLine()
+	for i, t := range v.tokensNames {
+		writer.WriteF("%d - %s", i, t).NewLine()
 	}
 	writer.Indent(-3)
 }

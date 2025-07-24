@@ -73,6 +73,7 @@ func (p *Parser) parseRule(ruleId int) bool {
 			return false
 		}
 	}
+	terminal := false
 	rules := p.syntax.Subrules(ruleId)
 	switch ParserRuleType(rules[0]) {
 	case AND_RULE:
@@ -91,35 +92,56 @@ func (p *Parser) parseRule(ruleId int) bool {
 		match = p.parseTestRule(rules)
 	case TERMINAL_RULE:
 		match = p.parseTerminalRule(rules)
+		terminal = true
 	case NON_TERMINAL_RULE:
 		match = p.parseNonTerminalRule(rules)
 	default:
 		panic("undefined rule type")
 	}
-	if match && !p.ignore && !p.syntax.IsSubRule(ruleId) && !p.syntax.HasOption(ruleId, SKIP_NODE) {
-		p.createNode(ruleId, index, lastNode)
-	} else if mem != nil {
-		mem.start = index
-		mem.end = -1
-		mem.node = nil
+	if !terminal {
+		if match && !p.ignore && !p.syntax.IsSubRule(ruleId) && !p.syntax.HasOption(ruleId, SKIP_NODE) {
+			p.createNode(ruleId, index, lastNode)
+		} else if mem != nil {
+			mem.start = index
+			mem.end = -1
+			mem.node = nil
+		}
 	}
 	p.ignore = previousIgnore
 	return match
 }
 
+func (p *Parser) skipIgnored(startIndex, endIndex int) int {
+	index := startIndex
+	tkn, err := p.lexer.Token(index)
+	if err != nil {
+		return startIndex
+	}
+	for p.lexer.IsIgnored(tkn) && index < endIndex {
+		index++
+		tkn, err = p.lexer.Token(index)
+		if err != nil {
+			return startIndex
+		}
+	}
+	return index
+}
+
 func (p *Parser) createNode(ruleId int, index int, lastNode *ASTNode) {
-	p.currentNode = NewASTNode(ruleId, index, p.lexer.Index()-1)
+	endIndex := p.lexer.Index() - 1
+	startIndex := p.skipIgnored(index, endIndex)
+	p.currentNode = NewASTNode(ruleId, startIndex, endIndex)
 	p.currentNode.SetFirstChild(lastNode.Sibling())
 	lastNode.SetSibling(p.currentNode)
 	if p.memorized[ruleId] == nil {
 		p.memorized[ruleId] = &memorizedRule{
 			node:  p.currentNode,
-			start: index,
+			start: startIndex,
 			end:   p.lexer.Index(),
 		}
 	} else {
 		p.memorized[ruleId].node = p.currentNode
-		p.memorized[ruleId].start = index
+		p.memorized[ruleId].start = startIndex
 		p.memorized[ruleId].end = p.lexer.Index()
 	}
 }
@@ -215,6 +237,9 @@ func (p *Parser) parseTerminalRule(rules []int) bool {
 		return false
 	}
 	for p.lexer.IsIgnored(tkn) {
+		if tkn.IsType(rules[1]) {
+			return true
+		}
 		tkn, err = p.lexer.NextToken()
 		if err != nil {
 			p.LexError(err)

@@ -11,12 +11,13 @@ import (
 )
 
 type syntaxBuilder struct {
-	syntax        *parser.Syntax
-	parserRules   map[string]*parserRule
-	currentRule   *parserRule
-	rulesBuilding *util.Deque[*parserRule]
-	vocabulary    *lexer.Vocabulary
-	nextId        int
+	syntax            *parser.Syntax
+	parserRules       map[string]*parserRule
+	currentRule       *parserRule
+	rulesBuilding     *util.Deque[*parserRule]
+	vocabulary        *lexer.Vocabulary
+	nextId            int
+	lastGrammarRuleId int
 }
 
 type parserRule struct {
@@ -40,11 +41,11 @@ func FromGrammar(g *grammar.Grammar, vocabulary *lexer.Vocabulary) *parser.Synta
 
 func (b *syntaxBuilder) build(g *grammar.Grammar) {
 	allRules := b.grammarRules(g)
-	lastRuleId := len(allRules) - 1
+	b.lastGrammarRuleId = len(allRules) - 1
 	for _, parserRule := range allRules {
-		b.createSyntax(parserRule, lastRuleId)
+		b.createSyntax(parserRule)
 	}
-	b.syntax = parser.SyntaxNew(len(b.parserRules), lastRuleId)
+	b.syntax = parser.SyntaxNew(len(b.parserRules), b.lastGrammarRuleId)
 	for _, parserRule := range b.parserRules {
 		b.syntax.Set(parserRule.id, parserRule.name, parserRule.rules)
 		b.setOptions(parserRule)
@@ -56,17 +57,6 @@ func (b *syntaxBuilder) build(g *grammar.Grammar) {
 
 func (b *syntaxBuilder) grammarRules(g *grammar.Grammar) []*parserRule {
 	allRules := make([]*parserRule, 0, len(g.ParserRules())+len(g.LexerRules()))
-	grammarParserRules := g.ParserRules()
-	for _, grammarRule := range grammarParserRules {
-		parserRule := &parserRule{
-			rule:  grammarRule,
-			id:    len(b.parserRules),
-			name:  grammarRule.Id(),
-			rules: make([]int, 0),
-		}
-		b.parserRules[grammarRule.Id()] = parserRule
-		allRules = append(allRules, parserRule)
-	}
 	grammarLexerRules := g.LexerRules()
 	for _, grammarRule := range grammarLexerRules {
 		parserRule := &parserRule{
@@ -75,6 +65,17 @@ func (b *syntaxBuilder) grammarRules(g *grammar.Grammar) []*parserRule {
 			name:  grammarRule.Id(),
 			rules: make([]int, 0),
 			lexer: true,
+		}
+		b.parserRules[grammarRule.Id()] = parserRule
+		allRules = append(allRules, parserRule)
+	}
+	grammarParserRules := g.ParserRules()
+	for _, grammarRule := range grammarParserRules {
+		parserRule := &parserRule{
+			rule:  grammarRule,
+			id:    len(b.parserRules),
+			name:  grammarRule.Id(),
+			rules: make([]int, 0),
 		}
 		b.parserRules[grammarRule.Id()] = parserRule
 		allRules = append(allRules, parserRule)
@@ -105,7 +106,7 @@ func (b *syntaxBuilder) isMainRule(g *grammar.Grammar, k string) bool {
 	return mainRule != nil && mainRule.Id() == g.MainRule().Id()
 }
 
-func (b *syntaxBuilder) createSyntax(r *parserRule, lastGrammarRuleId int) {
+func (b *syntaxBuilder) createSyntax(r *parserRule) {
 	if r.lexer {
 		tokenIndex := b.vocabulary.TokenIndex(r.rule.Id())
 		if tokenIndex < 0 {
@@ -122,7 +123,7 @@ func (b *syntaxBuilder) createSyntax(r *parserRule, lastGrammarRuleId int) {
 	if err != nil {
 		panic("Error building syntax: " + err.Error())
 	}
-	if lastRule.id <= lastGrammarRuleId {
+	if lastRule.id <= b.lastGrammarRuleId {
 		r.rules = append(r.rules, int(parser.NON_TERMINAL_RULE), lastRule.id)
 	} else {
 		r.rules = append(r.rules, lastRule.rules...)
@@ -155,7 +156,12 @@ func (b *syntaxBuilder) createCompoundRule(ruleType parser.ParserRuleType, rule 
 		rules[index] = r.id
 		index--
 	}
-	newRule := &parserRule{
+	newRule := b.findAuxiliarRule(rules)
+	if newRule != nil {
+		b.rulesBuilding.Push(newRule)
+		return
+	}
+	newRule = &parserRule{
 		id:    len(b.parserRules),
 		name:  b.currentRule.name + "#" + strconv.Itoa(b.nextId),
 		rules: rules,
@@ -182,7 +188,12 @@ func (b *syntaxBuilder) createSimpleRule(ruleType parser.ParserRuleType, rule ru
 		panic("Error building syntax: " + err.Error())
 	}
 	rules = append(rules, int(ruleType), r.id)
-	newRule := &parserRule{
+	newRule := b.findAuxiliarRule(rules)
+	if newRule != nil {
+		b.rulesBuilding.Push(newRule)
+		return
+	}
+	newRule = &parserRule{
 		id:    len(b.parserRules),
 		name:  b.currentRule.name + "#" + strconv.Itoa(b.nextId),
 		rules: rules,
@@ -190,6 +201,24 @@ func (b *syntaxBuilder) createSimpleRule(ruleType parser.ParserRuleType, rule ru
 	b.rulesBuilding.Push(newRule)
 	b.parserRules[newRule.name] = newRule
 	b.nextId++
+}
+
+func (b *syntaxBuilder) findAuxiliarRule(rules []int) *parserRule {
+	for _, parserRule := range b.parserRules {
+		if len(parserRule.rules) == len(rules) && parserRule.rules[0] == rules[0] && parserRule.id > b.lastGrammarRuleId {
+			match := true
+			for i, rule := range rules[1:] {
+				if parserRule.rules[i+1] != rule {
+					match = false
+					break
+				}
+			}
+			if match {
+				return parserRule
+			}
+		}
+	}
+	return nil
 }
 
 // VisitNotRule implements rule.RuleVisitor.
