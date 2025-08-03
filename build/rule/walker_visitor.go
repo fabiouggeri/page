@@ -3,7 +3,7 @@ package rule
 type walkerVisitor struct {
 	doVisit func(r Rule)
 	isVisit func(r Rule) bool
-	visited map[Rule]bool
+	visited map[Rule]struct{}
 }
 
 var _ RuleVisitor = &walkerVisitor{}
@@ -12,7 +12,7 @@ func newWalkerVisitor(visit func(r Rule), isVisit func(r Rule) bool) *walkerVisi
 	wv := &walkerVisitor{
 		doVisit: visit,
 		isVisit: isVisit,
-		visited: make(map[Rule]bool),
+		visited: make(map[Rule]struct{}),
 	}
 	return wv
 }
@@ -26,7 +26,7 @@ func (w *walkerVisitor) VisitAndRule(rule *AndRule) {
 	if _, found := w.visited[rule]; found {
 		return
 	}
-	w.visited[rule] = true
+	w.visited[rule] = struct{}{}
 	w.doVisit(rule)
 	rules := rule.Rules()
 	for _, r := range rules {
@@ -41,7 +41,7 @@ func (w *walkerVisitor) VisitOrRule(rule *OrRule) {
 	if _, found := w.visited[rule]; found {
 		return
 	}
-	w.visited[rule] = true
+	w.visited[rule] = struct{}{}
 	w.doVisit(rule)
 	rules := rule.Rules()
 	for _, r := range rules {
@@ -56,7 +56,7 @@ func (w *walkerVisitor) VisitCharRule(rule *CharRule) {
 	if _, found := w.visited[rule]; found {
 		return
 	}
-	w.visited[rule] = true
+	w.visited[rule] = struct{}{}
 	w.doVisit(rule)
 }
 
@@ -65,7 +65,7 @@ func (w *walkerVisitor) VisitNonTerminal(rule *NonTerminalRule) {
 	if _, found := w.visited[rule]; found {
 		return
 	}
-	w.visited[rule] = true
+	w.visited[rule] = struct{}{}
 	w.doVisit(rule)
 	if w.shouldVisit(rule.Rule()) {
 		rule.Rule().Visit(w)
@@ -77,7 +77,7 @@ func (w *walkerVisitor) VisitNotRule(rule *NotRule) {
 	if _, found := w.visited[rule]; found {
 		return
 	}
-	w.visited[rule] = true
+	w.visited[rule] = struct{}{}
 	w.doVisit(rule)
 	if w.shouldVisit(rule.Rule()) {
 		rule.Rule().Visit(w)
@@ -89,7 +89,7 @@ func (w *walkerVisitor) VisitOneOrMoreRule(rule *OneOrMoreRule) {
 	if _, found := w.visited[rule]; found {
 		return
 	}
-	w.visited[rule] = true
+	w.visited[rule] = struct{}{}
 	w.doVisit(rule)
 	if w.shouldVisit(rule.Rule()) {
 		rule.Rule().Visit(w)
@@ -101,7 +101,7 @@ func (w *walkerVisitor) VisitOptionalRule(rule *OptionalRule) {
 	if _, found := w.visited[rule]; found {
 		return
 	}
-	w.visited[rule] = true
+	w.visited[rule] = struct{}{}
 	w.doVisit(rule)
 	if w.shouldVisit(rule.Rule()) {
 		rule.Rule().Visit(w)
@@ -113,7 +113,7 @@ func (w *walkerVisitor) VisitRangeRule(rule *RangeRule) {
 	if _, found := w.visited[rule]; found {
 		return
 	}
-	w.visited[rule] = true
+	w.visited[rule] = struct{}{}
 	w.doVisit(rule)
 }
 
@@ -122,7 +122,7 @@ func (w *walkerVisitor) VisitStringRule(rule *StringRule) {
 	if _, found := w.visited[rule]; found {
 		return
 	}
-	w.visited[rule] = true
+	w.visited[rule] = struct{}{}
 	w.doVisit(rule)
 }
 
@@ -131,7 +131,7 @@ func (w *walkerVisitor) VisitTestRule(rule *TestRule) {
 	if _, found := w.visited[rule]; found {
 		return
 	}
-	w.visited[rule] = true
+	w.visited[rule] = struct{}{}
 	w.doVisit(rule)
 	if w.shouldVisit(rule.Rule()) {
 		rule.Rule().Visit(w)
@@ -143,7 +143,7 @@ func (w *walkerVisitor) VisitZeroOrMoreRule(rule *ZeroOrMoreRule) {
 	if _, found := w.visited[rule]; found {
 		return
 	}
-	w.visited[rule] = true
+	w.visited[rule] = struct{}{}
 	w.doVisit(rule)
 	if w.shouldVisit(rule.Rule()) {
 		rule.Rule().Visit(w)

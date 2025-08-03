@@ -15,6 +15,16 @@ type Syntax struct {
 	rulesNames      []string
 	rulesTable      [][]int
 	rulesOptions    []ParserRuleOption
+	firstTable      [][]int
+	followTables    []FollowTable
+}
+
+type FollowTable struct {
+	rulesFollow []RuleFollow
+}
+type RuleFollow struct {
+	rule        int
+	rulesFollow []int
 }
 
 const (
@@ -42,36 +52,45 @@ func SyntaxNew(totalRules int, lastNonTerminal int) *Syntax {
 		rulesNames:      make([]string, totalRules),
 		rulesTable:      make([][]int, totalRules),
 		rulesOptions:    make([]ParserRuleOption, totalRules),
+		firstTable:      make([][]int, totalRules),
+		followTables:    make([]FollowTable, totalRules),
 	}
 }
 
-func (s *Syntax) SetStartRule(index int) {
-	s.startRule = index
+func NewRuleFollow(ruleId int, followIds []int) RuleFollow {
+	return RuleFollow{
+		rule:        ruleId,
+		rulesFollow: followIds,
+	}
+}
+
+func (s *Syntax) SetStartRule(ruleId int) {
+	s.startRule = ruleId
 }
 
 func (s *Syntax) StartRule() int {
 	return s.startRule
 }
 
-func (s *Syntax) Set(index int, name string, rules []int) {
-	s.rulesNames[index] = name
-	s.rulesTable[index] = rules
+func (s *Syntax) Set(ruleId int, name string, rules []int) {
+	s.rulesNames[ruleId] = name
+	s.rulesTable[ruleId] = rules
 }
 
 func (s *Syntax) RulesCount() int {
 	return len(s.rulesNames)
 }
 
-func (s *Syntax) Rule(index int) (string, []int) {
-	return s.rulesNames[index], s.rulesTable[index]
+func (s *Syntax) Rule(ruleId int) (string, []int) {
+	return s.rulesNames[ruleId], s.rulesTable[ruleId]
 }
 
-func (s *Syntax) Subrules(index int) []int {
-	return s.rulesTable[index]
+func (s *Syntax) Subrules(ruleId int) []int {
+	return s.rulesTable[ruleId]
 }
 
-func (s *Syntax) RuleName(index int) string {
-	return s.rulesNames[index]
+func (s *Syntax) RuleName(ruleId int) string {
+	return s.rulesNames[ruleId]
 }
 
 func (s *Syntax) RuleId(name string) int {
@@ -81,6 +100,16 @@ func (s *Syntax) RuleId(name string) int {
 		}
 	}
 	return -1
+}
+
+func (s *Syntax) SetFollow(ruleId int, follow []RuleFollow) {
+	s.followTables[ruleId] = FollowTable{
+		rulesFollow: follow,
+	}
+}
+
+func (s *Syntax) SetFirst(ruleId int, firstIds []int) {
+	s.firstTable[ruleId] = firstIds
 }
 
 func (s *Syntax) IsSubRule(index int) bool {
@@ -105,7 +134,10 @@ func (s *Syntax) HasOption(index int, option ParserRuleOption) bool {
 
 func (s *Syntax) Write(writer *util.StringCodeWriter) {
 	ruleName := s.rulesNames[s.startRule]
-	writer.WriteString("Start Rule: ").WriteString(ruleName).NewLine()
+	writer.WriteString("Start Rule: ").
+		WriteString(ruleName).
+		NewLine().
+		NewLine()
 	for i, rules := range s.rulesTable {
 		ruleName = s.rulesNames[i]
 		writer.WriteString(ruleName).WriteString(" -> ")
@@ -115,6 +147,49 @@ func (s *Syntax) Write(writer *util.StringCodeWriter) {
 				ruleName = s.rulesNames[rule]
 				writer.WriteString(" ").WriteString(ruleName)
 			}
+		}
+		writer.NewLine()
+	}
+	writer.NewLine().WriteString("First:").
+		NewLine().
+		WriteString("======").
+		NewLine()
+	for i := range s.firstTable {
+		if len(s.firstTable[i]) == 0 {
+			continue
+		}
+		ruleName = s.rulesNames[i]
+		writer.WriteString(ruleName).WriteString(" -> ")
+		for j, firstRule := range s.firstTable[i] {
+			if j > 0 {
+				writer.WriteString(", ")
+			}
+			writer.WriteString(s.rulesNames[firstRule]).WriteString(" ")
+		}
+		writer.NewLine()
+	}
+	writer.NewLine().WriteString("Follow:").
+		NewLine().
+		WriteString("=======").
+		NewLine()
+	for i := range s.followTables {
+		ruleName = s.rulesNames[i]
+		if len(s.followTables[i].rulesFollow) == 0 {
+			continue
+		}
+		writer.WriteString(ruleName).WriteString(" -> ")
+		for j, follow := range s.followTables[i].rulesFollow {
+			if j > 0 {
+				writer.WriteString(", ")
+			}
+			writer.WriteString(s.rulesNames[follow.rule]).WriteString(" : {")
+			for k, followRule := range follow.rulesFollow {
+				if k > 0 {
+					writer.WriteString(", ")
+				}
+				writer.WriteString(s.rulesNames[followRule])
+			}
+			writer.WriteRune('}')
 		}
 		writer.NewLine()
 	}

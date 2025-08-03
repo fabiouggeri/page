@@ -245,7 +245,7 @@ func (l *grammarParser) nonTerminalEntry(ruleName string, importing bool) error 
 
 	if currentRule == nil {
 		currentRule = rule.New(ruleName, nil)
-		l.grammar.Rules(currentRule)
+		l.grammar.AddRules(currentRule)
 	} else if currentRule.Rule() != nil {
 		fmt.Printf("Rule %s redefined in line %d.", currentRule.Id(), l.line)
 	}
@@ -600,7 +600,7 @@ func (l *grammarParser) identifierRule() rule.Rule {
 		nonTermRule := l.grammar.GetRule(id)
 		if nonTermRule == nil {
 			nonTermRule = rule.New(id, nil)
-			l.grammar.Rules(nonTermRule)
+			l.grammar.AddRules(nonTermRule)
 		}
 		currentRule = nonTermRule
 	}

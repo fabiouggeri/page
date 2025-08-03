@@ -8,7 +8,7 @@ import (
 
 type maxSymbolVisitor struct {
 	maxSymbol   rune
-	visitedRule map[rule.Rule]bool
+	visitedRule map[rule.Rule]struct{}
 }
 
 var _ rule.RuleVisitor = &maxSymbolVisitor{}
@@ -16,7 +16,7 @@ var _ rule.RuleVisitor = &maxSymbolVisitor{}
 func newMaxSymbolVisitor() *maxSymbolVisitor {
 	return &maxSymbolVisitor{
 		maxSymbol:   0,
-		visitedRule: make(map[rule.Rule]bool, 0),
+		visitedRule: make(map[rule.Rule]struct{}, 0),
 	}
 }
 
@@ -40,7 +40,7 @@ func (m *maxSymbolVisitor) VisitOrRule(rule *rule.OrRule) {
 func (m *maxSymbolVisitor) VisitNonTerminal(rule *rule.NonTerminalRule) {
 	_, found := m.visitedRule[rule]
 	if !found {
-		m.visitedRule[rule] = true
+		m.visitedRule[rule] = struct{}{}
 		rule.Rule().Visit(m)
 	}
 }

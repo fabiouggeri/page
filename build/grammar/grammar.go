@@ -146,7 +146,7 @@ func (o *GrammarOptions) ParserName() string {
 	return o.parserName
 }
 
-func (g *Grammar) Rules(rules ...*rule.NonTerminalRule) error {
+func (g *Grammar) AddRules(rules ...*rule.NonTerminalRule) error {
 	if len(rules) == 0 {
 		return nil
 	}
@@ -439,6 +439,16 @@ func (g *Grammar) Errors() []error {
 		g.mapRules()
 	}
 	return g.errors
+}
+
+func (g *Grammar) Rules() []*rule.NonTerminalRule {
+	if g.lexerRules == nil || g.parserRules == nil {
+		g.mapRules()
+	}
+	rules := make([]*rule.NonTerminalRule, 0, g.lexerRules.Length()+g.parserRules.Length())
+	rules = append(rules, g.lexerRules.Items()...)
+	rules = append(rules, g.parserRules.Items()...)
+	return rules
 }
 
 func (g *Grammar) LexerRules() []*rule.NonTerminalRule {

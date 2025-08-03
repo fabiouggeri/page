@@ -21,11 +21,13 @@ type syntaxBuilder struct {
 }
 
 type parserRule struct {
-	rule  *rule.NonTerminalRule
-	id    int
-	name  string
-	rules []int
-	lexer bool
+	rule        *rule.NonTerminalRule
+	firstRules  *util.Set[*rule.NonTerminalRule]
+	followRules map[*rule.NonTerminalRule]*util.Set[*rule.NonTerminalRule]
+	id          int
+	name        string
+	rules       []int
+	lexer       bool
 }
 
 var _ rule.RuleVisitor = &syntaxBuilder{}
@@ -45,14 +47,70 @@ func (b *syntaxBuilder) build(g *grammar.Grammar) {
 	for _, parserRule := range allRules {
 		b.createSyntax(parserRule)
 	}
+	ff := computeFirstFollow(b.vocabulary, g.Rules())
+	for _, parserRule := range b.parserRules {
+		parserRule.firstRules = ff.firsts(parserRule.rule)
+		parserRule.followRules = ff.following(parserRule.rule)
+		if !parserRule.lexer {
+			b.createTranstionTable(parserRule)
+		}
+	}
 	b.syntax = parser.SyntaxNew(len(b.parserRules), b.lastGrammarRuleId)
 	for _, parserRule := range b.parserRules {
 		b.syntax.Set(parserRule.id, parserRule.name, parserRule.rules)
+		b.syntax.SetFirst(parserRule.id, b.firstRulesToId(parserRule.firstRules))
+		b.syntax.SetFollow(parserRule.id, b.followRulesToId(parserRule.followRules))
 		b.setOptions(parserRule)
 		if b.isMainRule(g, parserRule.name) {
 			b.syntax.SetStartRule(parserRule.id)
 		}
 	}
+}
+
+func (b *syntaxBuilder) followRulesToId(rules map[*rule.NonTerminalRule]*util.Set[*rule.NonTerminalRule]) []parser.RuleFollow {
+	if len(rules) == 0 {
+		return []parser.RuleFollow{}
+	}
+	followingIds := make([]parser.RuleFollow, 0, len(rules))
+	for nonTerminal, following := range rules {
+		parserRule, found := b.parserRules[nonTerminal.Id()]
+		if !found {
+			panic("Rule not found: " + nonTerminal.Id())
+		}
+		rulesIds := make([]int, 0, following.Length())
+		for _, f := range following.Items() {
+			if f != EMPTY_RULE {
+				followingRule, found := b.parserRules[f.Id()]
+				if !found {
+					panic("Rule not found: " + f.Id())
+				}
+				rulesIds = append(rulesIds, followingRule.id)
+			}
+		}
+		followingIds = append(followingIds, parser.NewRuleFollow(parserRule.id, rulesIds))
+	}
+	return followingIds
+}
+
+func (b *syntaxBuilder) firstRulesToId(rules *util.Set[*rule.NonTerminalRule]) []int {
+	if rules == nil {
+		return []int{}
+	}
+	ids := make([]int, 0, rules.Length())
+	for _, first := range rules.Items() {
+		if first != EMPTY_RULE {
+			parserRule, found := b.parserRules[first.Id()]
+			if !found {
+				panic("Rule not found: " + first.Id())
+			}
+			ids = append(ids, parserRule.id)
+		}
+	}
+	return ids
+}
+
+func (b *syntaxBuilder) createTranstionTable(parserRule *parserRule) {
+	createNFA(parserRule)
 }
 
 func (b *syntaxBuilder) grammarRules(g *grammar.Grammar) []*parserRule {
@@ -141,14 +199,14 @@ func (b *syntaxBuilder) VisitOrRule(rule *rule.OrRule) {
 	b.createCompoundRule(parser.OR_RULE, rule)
 }
 
-func (b *syntaxBuilder) createCompoundRule(ruleType parser.ParserRuleType, rule rule.CompoundRule) {
-	for _, r := range rule.Rules() {
+func (b *syntaxBuilder) createCompoundRule(ruleType parser.ParserRuleType, compoundRule rule.CompoundRule) {
+	for _, r := range compoundRule.Rules() {
 		r.Visit(b)
 	}
-	rules := make([]int, len(rule.Rules())+1)
+	rules := make([]int, len(compoundRule.Rules())+1)
 	rules[0] = int(ruleType)
-	index := len(rule.Rules())
-	for range rule.Rules() {
+	index := len(compoundRule.Rules())
+	for range compoundRule.Rules() {
 		r, err := b.rulesBuilding.Pop()
 		if err != nil {
 			panic("Error building syntax: " + err.Error())

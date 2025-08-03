@@ -135,17 +135,17 @@ func testLexer() {
 		return
 	}
 	os.WriteFile("C:\\Users\\fabio\\temp\\harbour_pp_grammar.txt", []byte(w.String()), 0644)
-	nfa := vocabulary.RulesToNFA(lexerRules...)
+	lexNFA := vocabulary.RulesToNFA(lexerRules...)
 	w.Reset()
-	w.WriteString(nfa.String())
+	w.WriteString(lexNFA.String())
 	os.WriteFile("C:\\Users\\fabio\\temp\\harbour_pp_nfa.dot", []byte(w.String()), 0644)
 
-	dfa := automata.NFAToDFA(nfa)
+	lexDFA := automata.NFAToDFA(lexNFA)
 	w.Reset()
-	w.WriteString(dfa.String())
+	w.WriteString(lexDFA.String())
 	os.WriteFile("C:\\Users\\fabio\\temp\\harbour_pp_dfa.dot", []byte(w.String()), 0644)
 
-	v := vocabulary.FromDFA(dfa)
+	v := vocabulary.FromDFA(lexDFA)
 	//v := vocabulary.FromGrammar(g1)
 	w.Reset()
 	v.Write(w)
@@ -153,6 +153,7 @@ func testLexer() {
 	w.NewLine()
 
 	w.Reset()
+	//syntaxNFA := syntax.RulesToNFA(g1.ParserRules()...)
 	syntax := syntax.FromGrammar(g1, v)
 	syntax.Write(w)
 	os.WriteFile("C:\\Users\\fabio\\temp\\harbour_pp_syntax.txt", []byte(w.String()), 0644)
