@@ -16,19 +16,19 @@ The project is divided into **Build Time** (Grammar Processing) and **Runtime** 
 
 ```mermaid
 graph TD
-    subgraph Build Time
-        G[Grammar File (.gp)] -->|Load| GP[Grammar Parser]
+    subgraph "Build Time"
+        G["Grammar File (.gp)"] -->|Load| GP[Grammar Parser]
         GP -->|Generate| V[Vocabulary]
         GP -->|Generate| S[Syntax]
     end
 
     subgraph Runtime
-        Src[Source Code] -->|Read| I[Input Stream]
+        Src["Source Code"] -->|Read| I["Input Stream"]
         I -->|Feed| L[Lexer]
         V -.->|Config| L
         L -->|Tokens| P[Parser]
         S -.->|Config| P
-        P -->|Build| AST[Abstract Syntax Tree]
+        P -->|Build| AST["Abstract Syntax Tree"]
         AST -->|Walk| Vis[Visitor]
     end
 ```
