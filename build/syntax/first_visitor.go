@@ -28,12 +28,30 @@ func (f *firstVisitor) VisitNonTerminal(rule *rule.NonTerminalRule) {
 }
 
 // VisitAndRule implements rule.RuleVisitor.
-func (f *firstVisitor) VisitAndRule(rule *rule.AndRule) {
-	for _, r := range rule.Rules() {
-		r.Visit(f)
-		if !f.firstRules.Contains(EMPTY_RULE) {
-			return
+func (f *firstVisitor) VisitAndRule(r *rule.AndRule) {
+	allNullable := true
+	for _, subRule := range r.Rules() {
+		subVisited := make(map[*rule.NonTerminalRule]struct{}, len(f.visited))
+		for k, v := range f.visited {
+			subVisited[k] = v
 		}
+		subVisitor := &firstVisitor{
+			visited:    subVisited,
+			vocabulary: f.vocabulary,
+			firstRules: util.NewSet[*rule.NonTerminalRule](),
+		}
+		subRule.Visit(subVisitor)
+		if subVisitor.firstRules.Contains(EMPTY_RULE) {
+			subVisitor.firstRules.Del(EMPTY_RULE)
+			f.firstRules.AddAll(subVisitor.firstRules.Items()...)
+		} else {
+			f.firstRules.AddAll(subVisitor.firstRules.Items()...)
+			allNullable = false
+			break
+		}
+	}
+	if allNullable {
+		f.firstRules.Add(EMPTY_RULE)
 	}
 }
 

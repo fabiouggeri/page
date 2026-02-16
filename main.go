@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/fabiouggeri/page/build/automata"
 	"github.com/fabiouggeri/page/build/grammar"
@@ -23,7 +24,10 @@ func main() {
 	//cg := go.NewGenerator()
 	//err := cg.Generate("c:\\temp\\test-parser", cg.BuildParser())
 	//testCode()
+	start := time.Now()
 	testLexer()
+	elapsed := time.Since(start)
+	fmt.Printf("Tempo execução: %s\n", elapsed)
 }
 
 func upperLetter() *rule.RangeRule {
@@ -159,20 +163,23 @@ func testLexer() {
 	os.WriteFile("C:\\Users\\fabio\\temp\\harbour_pp_syntax.txt", []byte(w.String()), 0644)
 
 	// input := input.NewStringInput("private function teste(a, b)\n {")
-	input, inputErr := input.NewFileInput("C:\\Users\\fabio\\temp\\sdb_api_med.prg")
+	input, inputErr := input.NewFileInput("C:\\Users\\fabio\\dev\\github\\harbour\\src\\rtl\\tbrowse.prg")
+	// input, inputErr := input.NewFileInput("C:\\Users\\fabio\\temp\\sdb_api_med.prg")
 	//i, inputErr := input.NewFileInput("C:\\Users\\fabio\\temp\\teste.prg")
 	if inputErr != nil {
 		fmt.Print(inputErr)
 		return
 	}
+	start := time.Now()
 	lex := lexer.New(v, input)
-	saveTokens(lex, v, input)
-	lex.SetIndex(0)
-	//printTokens(l, v)
 	// d := automata.NFAToDFA(vocabulary.RulesToNFA(g1.ParserRules()...))
 	// fmt.Print(d.String())
 	p := parser.New(lex, syntax)
 	rootNode := p.Execute()
+	elapsed := time.Since(start)
+	lex.SetIndex(0)
+	saveTokens(lex, v, input)
+	//printTokens(l, v)
 	if rootNode != nil {
 		//printTree(ast, i, s, 0)
 		saveAST(rootNode, p, 0)
@@ -190,7 +197,13 @@ func testLexer() {
 		fmt.Printf("Found node: %v\n", node)
 		nodes := rootNode.List(syntax, "Statement/IncludeDirective")
 		fmt.Printf("Found node: %v\n", nodes)
+	} else {
+		fmt.Print("Parse errors:\n")
+		for _, e := range p.Errors() {
+			fmt.Printf("   %s\n", e.Message())
+		}
 	}
+	fmt.Printf("Parse time: %s\n", elapsed)
 }
 
 func printTokens(l *lexer.Lexer, v *lexer.Vocabulary) {

@@ -8,6 +8,7 @@ import (
 	"github.com/fabiouggeri/page/runtime/lexer"
 	"github.com/fabiouggeri/page/runtime/parser"
 	"github.com/fabiouggeri/page/util"
+	"golang.org/x/exp/maps"
 )
 
 type syntaxBuilder struct {
@@ -47,7 +48,8 @@ func (b *syntaxBuilder) build(g *grammar.Grammar) {
 	for _, parserRule := range allRules {
 		b.createSyntax(parserRule)
 	}
-	ff := computeFirstFollow(b.vocabulary, g.Rules())
+
+	ff := computeFirstFollow(b.vocabulary, maps.Values(b.parserRules))
 	for _, parserRule := range b.parserRules {
 		parserRule.firstRules = ff.firsts(parserRule.rule)
 		parserRule.followRules = ff.following(parserRule.rule)
@@ -219,9 +221,11 @@ func (b *syntaxBuilder) createCompoundRule(ruleType parser.ParserRuleType, compo
 		b.rulesBuilding.Push(newRule)
 		return
 	}
+	ruleName := b.currentRule.name + "#" + strconv.Itoa(b.nextId)
 	newRule = &parserRule{
+		rule:  rule.New(ruleName, compoundRule),
 		id:    len(b.parserRules),
-		name:  b.currentRule.name + "#" + strconv.Itoa(b.nextId),
+		name:  ruleName,
 		rules: rules,
 	}
 	b.rulesBuilding.Push(newRule)
@@ -238,8 +242,8 @@ func (b *syntaxBuilder) VisitNonTerminal(rule *rule.NonTerminalRule) {
 	b.rulesBuilding.Push(parserRule)
 }
 
-func (b *syntaxBuilder) createSimpleRule(ruleType parser.ParserRuleType, rule rule.SimpleRule) {
-	rule.Rule().Visit(b)
+func (b *syntaxBuilder) createSimpleRule(ruleType parser.ParserRuleType, simpleRule rule.SimpleRule) {
+	simpleRule.Rule().Visit(b)
 	rules := make([]int, 0, 2)
 	r, err := b.rulesBuilding.Pop()
 	if err != nil {
@@ -251,9 +255,11 @@ func (b *syntaxBuilder) createSimpleRule(ruleType parser.ParserRuleType, rule ru
 		b.rulesBuilding.Push(newRule)
 		return
 	}
+	ruleName := b.currentRule.name + "#" + strconv.Itoa(b.nextId)
 	newRule = &parserRule{
+		rule:  rule.New(ruleName, simpleRule),
 		id:    len(b.parserRules),
-		name:  b.currentRule.name + "#" + strconv.Itoa(b.nextId),
+		name:  ruleName,
 		rules: rules,
 	}
 	b.rulesBuilding.Push(newRule)

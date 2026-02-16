@@ -8,7 +8,7 @@ import (
 
 type firstFollow struct {
 	vocabulary     *lexer.Vocabulary
-	rules          []*rule.NonTerminalRule
+	rules          []*parserRule
 	firstRules     map[*rule.NonTerminalRule]*util.Set[*rule.NonTerminalRule]
 	followingRules map[*rule.NonTerminalRule]*followingRules
 }
@@ -21,7 +21,7 @@ var (
 	EMPTY_RULE = &rule.NonTerminalRule{}
 )
 
-func computeFirstFollow(vocabulary *lexer.Vocabulary, rules []*rule.NonTerminalRule) *firstFollow {
+func computeFirstFollow(vocabulary *lexer.Vocabulary, rules []*parserRule) *firstFollow {
 	ff := &firstFollow{
 		vocabulary:     vocabulary,
 		rules:          rules,
@@ -39,8 +39,8 @@ func (ff *firstFollow) computeRulesFollow() {
 		following := &followingRules{
 			followingRules: make(map[*rule.NonTerminalRule]*util.Set[*rule.NonTerminalRule]),
 		}
-		ff.followingRules[nonTerminal] = following
-		if andRule, ok := nonTerminal.Rule().(*rule.AndRule); ok {
+		ff.followingRules[nonTerminal.rule] = following
+		if andRule, ok := nonTerminal.rule.Rule().(*rule.AndRule); ok {
 			ff.computeFollow(following, andRule.Rules())
 		}
 	}
@@ -164,17 +164,17 @@ func (ff *firstFollow) endRules(r rule.Rule) *util.Set[*rule.NonTerminalRule] {
 }
 
 func (ff *firstFollow) computeRulesFirst() {
-	for _, r := range ff.rules {
-		if ff.vocabulary.TokenIndex(r.Id()) >= 0 {
-			ff.firstRules[r] = util.NewSet(r)
+	for _, parserRule := range ff.rules {
+		if ff.vocabulary.TokenIndex(parserRule.rule.Id()) >= 0 {
+			ff.firstRules[parserRule.rule] = util.NewSet(parserRule.rule)
 		} else {
 			firstVisitor := &firstVisitor{
 				visited:    make(map[*rule.NonTerminalRule]struct{}),
 				vocabulary: ff.vocabulary,
 				firstRules: util.NewSet[*rule.NonTerminalRule](),
 			}
-			r.Rule().Visit(firstVisitor)
-			ff.firstRules[r] = firstVisitor.firstRules
+			parserRule.rule.Rule().Visit(firstVisitor)
+			ff.firstRules[parserRule.rule] = firstVisitor.firstRules
 		}
 	}
 }

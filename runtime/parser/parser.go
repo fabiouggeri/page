@@ -59,10 +59,11 @@ func (p *Parser) parseRule(ruleId int) bool {
 	if p.syntax.HasOption(ruleId, IGNORE) {
 		p.ignore = true
 	}
-	//fmt.Printf("Rule (%d, %d): %s\n", p.lexer.Row(), p.lexer.Col(), p.syntax.rulesNames[ruleId])
 	lastNode := p.currentNode
 	index := p.lexer.Index()
 	match := false
+	// tkn, _ := p.lexer.Token(index)
+	// fmt.Printf("Rule (%d, %d): %s\n", tkn.Row(), tkn.Col(), p.syntax.rulesNames[ruleId])
 	//row, col := p.lexer.Row(), p.lexer.Col()
 	mem := p.memorized[ruleId]
 	if mem != nil && mem.start == index {
